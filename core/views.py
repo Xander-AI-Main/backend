@@ -87,9 +87,8 @@ class DatasetUploadView(APIView):
             elif final_column.dtype == object and df.apply(lambda col: col.str.len().mean() > 10).any():
                 task_type = 'Textual'
                 architecture_details = 'NLP architecture'
-        
+        os.remove(file_path)
         return task_type, architecture_details
-
     
     def upload_to_s3(self, endpoint, bucket_name, file_path):
         files = {
