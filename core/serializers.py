@@ -11,8 +11,6 @@ class signupSerializer(serializers.ModelSerializer):
     def get_country(self, obj):
         return str(obj.country) if obj.country else None
 
-class FileURLSerializer(serializers.Serializer):
-    url = serializers.URLField()
 
 class DatasetUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
@@ -23,14 +21,3 @@ class DatasetSerializer(serializers.ModelSerializer):
         fields = '__all__'
         
 
-
-# class S3StorageSerializer(serializers.ModelSerializer):
-#      class Meta:
-#          model = S3Storage
-#          fields = ['id', 'total_storage_gb']
-        
-
-# class ZippedFileSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = ZippedFile
-#         fields = ['id', 'file', 'uploaded_at']

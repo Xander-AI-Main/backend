@@ -30,20 +30,6 @@ class userSignup (AbstractUser):
         super().save(*args, **kwargs)
         
 
-# class Dataset(models.Model):
-#     file = models.URLField(max_length=250)
-#     uploaded_at = models.DateTimeField(auto_now_add=True)
-    
-
-# class S3Storage(models.Model):
-#     total_storage_gb = models.FloatField(default=0.0)
-
-# class ZippedFile(models.Model):
-#     file = models.FileField(upload_to='zipped_files/')
-#     uploaded_at = models.DateTimeField(auto_now_add=True)
-
-# storage/models.py
-
 
 class Dataset(models.Model):
     name = models.CharField(max_length=255)

@@ -4,7 +4,9 @@ import zipfile
 import pandas as pd
 import json
 import mimetypes
+import boto3
 import numpy as np
+from django.conf import settings
 from rest_framework import viewsets
 from django.core.files.storage import default_storage
 from rest_framework import status
@@ -43,7 +45,7 @@ class DatasetUploadView(APIView):
             )
 
             # Upload dataset to cloud and get URL
-            cloud_url = self.upload_to_cloud(file_path)
+            cloud_url = self.upload_to_s3(uploaded_file)
 
             response_data = {
                 'task_type': task_type,
@@ -89,9 +91,20 @@ class DatasetUploadView(APIView):
         
         return task_type, architecture_details
 
-    def upload_to_cloud(self, file_path):
-        # Simulate uploading to cloud
-        return f"https://cloud-storage/{os.path.basename(file_path)}"
+    def upload_to_s3(self, file):
+        s3_client = boto3.client(
+            's3',
+            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
+            region_name=settings.AWS_S3_REGION_NAME
+        )
+        bucket_name = settings.AWS_STORAGE_BUCKET_NAME
+        s3_file_name = file.name
+
+        s3_client.upload_fileobj(file, bucket_name, s3_file_name)
+        cloud_url = f'https://{settings.AWS_S3_CUSTOM_DOMAIN}/{s3_file_name}'
+        
+        return cloud_url
 
 
 class signupViewset(viewsets.ModelViewSet):
