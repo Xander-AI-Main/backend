@@ -1,13 +1,11 @@
 from django.urls import path,include
 from rest_framework.routers import DefaultRouter
 from .views import DatasetUploadView
-
 from . import views
 
 router=DefaultRouter()
 
-router.register('studentfees/',views.signupViewset,basename='signup'),
-
+router.register('studentfees/',views.signupViewset, basename='signup'),
 
 urlpatterns=[
     path('signup/',include(router.urls)),

@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .serializers import DatasetUploadSerializer, DatasetSerializer,signupSerializer
 from .models import Dataset, S3StorageUsage,userSignup
+import requests
 
 class DatasetUploadView(APIView):
     serializer_class = DatasetUploadSerializer
@@ -24,28 +25,27 @@ class DatasetUploadView(APIView):
             uploaded_file = serializer.validated_data['file']
             file_path = default_storage.save(uploaded_file.name, uploaded_file)
 
-            # Get file size and convert to GB
             file_size_bytes = uploaded_file.size
             file_size_gb = file_size_bytes / (1024 ** 3)
 
-            # Update S3 Storage Usage
             s3_storage, created = S3StorageUsage.objects.get_or_create(id=1)
             s3_storage.used_gb += file_size_gb
             s3_storage.save()
 
-            # Determine task type
             task_type, architecture_details = self.determine_task(file_path)
+            print(file_path)
 
-            # Save metadata
             dataset = Dataset.objects.create(
                 name=uploaded_file.name,
                 size_gb=file_size_gb,
                 task_type=task_type,
                 architecture_details=architecture_details
             )
+            
+            api_url = 'https://s3-api-uat.idesign.market/api/upload'
+            bucket_name = 'idesign-quotation'
 
-            # Upload dataset to cloud and get URL
-            cloud_url = self.upload_to_s3(uploaded_file)
+            cloud_url = self.upload_to_s3(api_url, bucket_name, file_path)
 
             response_data = {
                 'task_type': task_type,
@@ -56,7 +56,6 @@ class DatasetUploadView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def determine_task(self, file_path):
-        # Load dataset
         file_type = mimetypes.guess_type(file_path)[0]
         task_type = ''
         architecture_details = ''
@@ -91,21 +90,29 @@ class DatasetUploadView(APIView):
         
         return task_type, architecture_details
 
-    def upload_to_s3(self, file):
-        s3_client = boto3.client(
-            's3',
-            aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-            aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-            region_name=settings.AWS_S3_REGION_NAME
-        )
-        bucket_name = settings.AWS_STORAGE_BUCKET_NAME
-        s3_file_name = file.name
-
-        s3_client.upload_fileobj(file, bucket_name, s3_file_name)
-        cloud_url = f'https://{settings.AWS_S3_CUSTOM_DOMAIN}/{s3_file_name}'
+    
+    def upload_to_s3(self, endpoint, bucket_name, file_path):
+        files = {
+            'bucketName': (None, bucket_name),
+            'files': open(file_path, 'rb')
+        }
         
-        return cloud_url
-
+        try:
+            print(1)
+            response = requests.put(endpoint, files=files)
+            response_data = response.json()
+            print(2)
+            if response.status_code == 200:
+                pdf_info = response_data.get('locations', [])[0]
+                initial_url = pdf_info
+                print(f"File uploaded successfully. URL: {initial_url}")
+                return initial_url
+            else:
+                print(f"Failed to upload file. Error: {response_data.get('error')}")
+                return None
+        except requests.exceptions.RequestException as e:
+            print(f"An error occurred: {str(e)}")
+            return None
 
 class signupViewset(viewsets.ModelViewSet):
     queryset=userSignup.objects.all()
