@@ -5,7 +5,7 @@ from . import views
 
 router=DefaultRouter()
 
-router.register('studentfees/',views.signupViewset, basename='signup'),
+router.register('signup/',views.signupViewset, basename='signup'),
 
 urlpatterns=[
     path('signup/',include(router.urls)),
