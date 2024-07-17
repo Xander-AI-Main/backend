@@ -1,0 +1,272 @@
+{
+  "regression": [
+    {
+      "archType": "default",
+      "type": "DL",
+      "architecture": [
+        {
+          "layer": "Dense",
+          "neurons": 128,
+          "activation": "relu",
+          "define_input_shape": "true"
+        },
+        { "layer": "Dropout", "ratio": 0.1 },
+        {
+          "layer": "Dense",
+          "neurons": 64,
+          "activation": "relu",
+          "define_input_shape": "false"
+        },
+        { "layer": "Dropout", "ratio": 0.1 },
+        {
+          "layer": "Dense",
+          "neurons": 32,
+          "activation": "relu",
+          "define_input_shape": "false"
+        },
+        { "layer": "Dense", "neurons": 1, "define_input_shape": "false" }
+      ],
+      "hyperparameters": {
+        "epochs": 100,
+        "batch_size": 32,
+        "validation_size": 0.2
+      }
+    },
+    {
+      "archType": "1",
+      "type": "ML",
+      "architecture": [{ "layer": "Linear Regression" }],
+      "hyperparameters": {
+        "fit_intercept": true,
+        "copy_X": true,
+        "n_jobs": null,
+        "positive": false
+      }
+    },
+    {
+      "archType": "2",
+      "type": "ML",
+      "architecture": [{ "layer": "XGBoost" }],
+      "hyperparameters": {
+        "n_estimators": 100,
+        "max_depth": 6,
+        "learning_rate": 0.1,
+        "subsample": 1.0,
+        "colsample_bytree": 1.0,
+        "colsample_bylevel": 1.0,
+        "colsample_bynode": 1.0,
+        "gamma": 0,
+        "min_child_weight": 1,
+        "reg_alpha": 0,
+        "reg_lambda": 1,
+        "scale_pos_weight": 1,
+        "base_score": 0.5,
+        "random_state": 42,
+        "objective": "reg:squarederror"
+      }
+    },
+    {
+      "archType": "3",
+      "type": "ML",
+      "architecture": [{ "layer": "AdaBoost" }],
+      "hyperparameters": {
+        "n_estimators": 50,
+        "learning_rate": 1.0,
+        "loss": "linear",
+        "random_state": 42
+      }
+    }
+  ],
+  "classification": [
+    {
+      "archType": "default",
+      "type": "DL",
+      "architecture": [
+        {
+          "layer": "Dense",
+          "neurons": 128,
+          "activation": "relu",
+          "define_input_shape": "true"
+        },
+        { "layer": "Dropout", "ratio": 0.1 },
+        {
+          "layer": "Dense",
+          "neurons": 64,
+          "activation": "relu",
+          "define_input_shape": "false"
+        },
+        { "layer": "Dropout", "ratio": 0.1 },
+        {
+          "layer": "Dense",
+          "neurons": 32,
+          "activation": "relu",
+          "define_input_shape": "false"
+        },
+        {
+          "layer": "Dense",
+          "neurons": 1,
+          "activation": "sigmoid",
+          "define_input_shape": "false"
+        }
+      ],
+      "hyperparameters": {
+        "epochs": 100,
+        "batch_size": 32,
+        "validation_size": 0.2
+      }
+    },
+    {
+      "archType": "1",
+      "type": "ML",
+      "architecture": [{ "name": "Support Vector Machines" }],
+      "hyperparameters": {
+        "n_estimators": 100,
+        "max_depth": 3,
+        "learning_rate": 0.1
+      }
+    },
+    {
+      "archType": "2",
+      "type": "ML",
+      "architecture": [{ "layer": "XGBoost" }],
+      "hyperparameters": { "C": 1.0, "kernel": "rbf" }
+    },
+    {
+      "archType": "3",
+      "type": "ML",
+      "architecture": [{ "layer": "DecisionTree" }],
+      "hyperparameters": { "max_depth": 5 }
+    }
+  ],
+  "audio": [
+    {
+      "archType": "default",
+      "type": "DL",
+      "architecture": [{ "name": "Using CoQui and GlowTTS" }],
+      "hyperparameters": {
+        "batch_size": 64,
+        "epochs": 30
+      }
+    }
+  ],
+  "chatbot": [
+    {
+      "archType": "default",
+      "type": "DL",
+      "architecture": [{ "name": "Using Sentence Transformers" }],
+      "hyperparameters": {
+        
+      }
+    }
+  ],
+  "text": [
+    {
+      "archType": "default",
+      "type": "topic classification",
+      "architecture": [
+        {
+          "layer": "Embedding",
+          "input_dim": 20000,
+          "output_dim": 100,
+          "input_length": 100
+        },
+        {
+          "layer": "Bidirectional",
+          "units": 128,
+          "return_sequences": true,
+          "dropout": 0.3,
+          "recurrent_dropout": 0.3
+        },
+        {
+          "layer": "Dropout",
+          "rate": 0.3
+        },
+        {
+          "layer": "LSTM",
+          "units": 64,
+          "dropout": 0.3,
+          "recurrent_dropout": 0.3,
+          "kernel_regularizer": {
+            "l2": 0.01
+          }
+        },
+        {
+          "layer": "Dense",
+          "units": 10,
+          "activation": "softmax",
+          "kernel_regularizer": {
+            "l2": 0.01
+          }
+        }
+      ],
+      "hyperparameters": {
+        "epochs": 1,
+        "batch_size": 64,
+        "validation_split": 0.2
+      }
+    }
+  ],
+  "image": [
+    {
+      "archType": "default",
+      "type": "DL",
+      "architecture": [
+        {
+          "layer": "Rescaling",
+          "define_input_shape": true,
+          "input_shape": [120, 120, 3]
+        },
+        {
+          "layer": "Conv2D",
+          "filters": 64,
+          "kernel_size": [3, 3],
+          "activation": "relu",
+          "define_input_shape": false
+        },
+        {
+          "layer": "MaxPooling2D",
+          "pool_size": [2, 2],
+          "define_input_shape": false
+        },
+        {
+          "layer": "Conv2D",
+          "filters": 64,
+          "kernel_size": [3, 3],
+          "activation": "relu",
+          "define_input_shape": false
+        },
+        {
+          "layer": "MaxPooling2D",
+          "pool_size": [2, 2],
+          "define_input_shape": false
+        },
+        {
+          "layer": "Conv2D",
+          "filters": 32,
+          "kernel_size": [3, 3],
+          "activation": "relu",
+          "define_input_shape": false
+        },
+        {
+          "layer": "MaxPooling2D",
+          "pool_size": [2, 2],
+          "define_input_shape": false
+        },
+        {
+          "layer": "Flatten",
+          "define_input_shape": false
+        },
+        {
+          "layer": "Dense",
+          "neurons": 128,
+          "activation": "relu",
+          "define_input_shape": false
+        }
+      ],
+      "hyperparameters": {
+        "epochs": 1,
+        "batch_size": 16
+      }
+    }
+  ]
+}
