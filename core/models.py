@@ -37,6 +37,7 @@ class Dataset(models.Model):
     task_type = models.CharField(max_length=255)
     architecture_details = models.TextField()
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    hyperparameter=models.JSONField(default=list)
 
 class S3StorageUsage(models.Model):
     used_gb = models.FloatField(default=0)

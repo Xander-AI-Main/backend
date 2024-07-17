@@ -20,4 +20,15 @@ class DatasetSerializer(serializers.ModelSerializer):
         model = Dataset
         fields = '__all__'
         
+class TaskSerializer(serializers.Serializer):
+    dataset_url = serializers.URLField()
+    hasChanged = serializers.BooleanField()
+    task = serializers.ChoiceField(choices=['regression'])
+    mainType = serializers.ChoiceField(choices=['DL', 'ML'])
+    archType = serializers.CharField()
+    arch_data = serializers.JSONField(required=False)
+
+class ResultSerializer(serializers.Serializer):
+    model_obj = serializers.JSONField()
+        
 
