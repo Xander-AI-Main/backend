@@ -19,7 +19,7 @@ import pandas as pd
 from .ai_unified.AIUnified.RegressionML import RegressionML
 from .ai_unified.AIUnified.RegressionDL import RegressionDL
 from .ai_unified.AIUnified.ClassificationDL import ClassificationDL
-from .ai_unified.AIUnified.ClassificationML import MLTrainer
+from .ai_unified.AIUnified.ClassificationML import ClassificationML
 from .ai_unified.AIUnified.ImageModelTrainer import ImageModelTrainer
 from .ai_unified.AIUnified.TextModel import TextModel
 from .ai_unified.AIUnified.Chatbot import Chatbot 
@@ -32,26 +32,17 @@ def returnArch (data, task, mainType, archType):
         if  i["type"] == mainType and i["archType"] == archType:
             return i["architecture"], i["hyperparameters"]
         
-
-
 url = 'https://idesign-quotation.s3.ap-south-1.amazonaws.com/NO_COMPANYNAME/arch.json'
 
 try:
-    # Fetching the JSON data from the URL
     response = requests.get(url)
     
-    # Checking if the request was successful (status code 200)
     if response.status_code == 200:
-        # Loading JSON data from the response content
         arch_data= json.loads(response.content)
-        
-       
     else:
         print(f"Failed to retrieve data from {url}. Status code: {response.status_code}")
 except requests.exceptions.RequestException as e:
     print(f"Error fetching data from {url}: {e}")
-    
-
 
 class DatasetUploadView(APIView):
     serializer_class = DatasetUploadSerializer
@@ -78,7 +69,6 @@ class DatasetUploadView(APIView):
                 task_type=task_type,
                 architecture_details=architecture_details,
                 hyperparameter=hyperparameter
-                
             )
             
             api_url = 'https://s3-api-uat.idesign.market/api/upload'
