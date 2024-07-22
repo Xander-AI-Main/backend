@@ -10,8 +10,8 @@ class userSignup (AbstractUser):
     currency = models.CharField(max_length=3, blank=True, null=True)
     workin_in_team=models.BooleanField(default=False)
     s3_storage_used=models.FloatField(default=0.0)
-    cpu_hours_used=models.IntegerField(default=0,blank=False, null=False)
-    gpu_hours_used=models.IntegerField(default=0,blank=False, null=False)
+    cpu_hours_used=models.FloatField(default=0,blank=False, null=False)
+    gpu_hours_used=models.FloatField(default=0,blank=False, null=False)
     dataset_url=models.JSONField(default=list)
     trained_model_url=models.JSONField(default=list)
     plan=models.TextField()
@@ -33,7 +33,7 @@ class userSignup (AbstractUser):
             self.trained_model_url = json.loads(self.trained_model_url)
         if isinstance(self.team, str):
             self.team = json.loads(self.team)
-            
+
         super().save(*args, **kwargs)
         
 class Dataset(models.Model):

@@ -19,7 +19,6 @@ import queue
 import threading
 from tensorflow.keras.callbacks import Callback
 
-nltk.download('punkt')
 
 class TextModel:
     def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters):
@@ -218,6 +217,7 @@ class TextModel:
             return None, None, None
 
     def execute(self):
+        nltk.download('punkt')
         self.create_model()
 
         training_thread = threading.Thread(target=self.train_model)

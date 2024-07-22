@@ -10,6 +10,7 @@ import shutil
 import torch
 import zipfile
 import uuid
+import os
 
 class Chatbot:
     def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters):
@@ -107,7 +108,10 @@ class Chatbot:
             "question_embeddings_url": uploaded_urls.get('question_embeddings.pt', ""),
             "answer_embeddings_url": uploaded_urls.get('answer_embeddings.pt', ""),
             "model_url": uploaded_urls.get(model_path, ""),
-            "id": _id
+            "id": _id,
+            "architecture": "Sentence Transformers",
+            "hyperparameters": {},
+            "size": os.path.getsize(model_path) / (1024 ** 3) + os.path.getsize("question_embeddings.pt") / (1024 ** 3) + os.path.getsize("answer_embeddings.pt") / (1024 ** 3)
         }
 
         return model_obj

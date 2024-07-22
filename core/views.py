@@ -26,8 +26,11 @@ from .ai_unified.AIUnified.Chatbot import Chatbot
 from rest_framework import viewsets, status
 from rest_framework.response import Response
 from .models import userSignup
-from .serializers import signupSerializer, LoginSerializer
+from .serializers import signupSerializer, LoginSerializer, UserUpdateSerializer
 from rest_framework.authtoken.models import Token
+from django.shortcuts import get_object_or_404
+from rest_framework.permissions import IsAuthenticated
+import time
 
 def returnArch(data, task, mainType, archType):
     current_task = data[task]
@@ -58,10 +61,16 @@ class DatasetUploadView(APIView):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             uploaded_file = serializer.validated_data['file']
+            userId = serializer.validated_data['userId']
             file_path = default_storage.save(uploaded_file.name, uploaded_file)
 
             file_size_bytes = uploaded_file.size
             file_size_gb = file_size_bytes / (1024 ** 3)
+
+            user = get_object_or_404(userSignup, id=userId)
+            currUsage = float(user.s3_storage_used)
+            user.s3_storage_used = currUsage + file_size_gb
+            user.save()
 
             # s3_storage, created = S3StorageUsage.objects.get_or_create(id=1)
             # s3_storage.used_gb += file_size_gb
@@ -69,7 +78,6 @@ class DatasetUploadView(APIView):
 
             task_type, hyperparameter, architecture_details = self.determine_task(
                 file_path)
-            print(file_path)
 
             dataset = Dataset.objects.create(
                 name=uploaded_file.name,
@@ -90,6 +98,15 @@ class DatasetUploadView(APIView):
                 'cloud_url': cloud_url,
                 'hyperparameter': hyperparameter
             }
+            if type(user.dataset_url) == str:
+                datasets = json.loads(user.dataset_url)
+            else:
+                datasets = user.dataset_url
+            print(datasets)
+            datasets.append(response_data)
+            user.dataset_url = datasets
+            user.save()
+
             return Response(response_data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -169,7 +186,6 @@ class DatasetUploadView(APIView):
             print(f"An error occurred: {str(e)}")
             return None
 
-
 class signupViewset(viewsets.ModelViewSet):
     queryset = userSignup.objects.all()
     serializer_class = signupSerializer
@@ -179,8 +195,11 @@ class signupViewset(viewsets.ModelViewSet):
         if serializer.is_valid():
             user = serializer.save()
             response_serializer = self.get_serializer(user)
+            
+            userId = str(user.id)  
             return Response({
                 "message": "User created successfully",
+                "userId": userId,
                 "user": response_serializer.data
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -191,48 +210,88 @@ def returnArch(data, task, mainType, archType):
         if i["type"] == mainType and i["archType"] == archType:
             return i["architecture"], i["hyperparameters"]
 
-
 class LoginView(APIView):
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data
             token, created = Token.objects.get_or_create(user=user)
-            print(user)
-            return Response({
+            
+            user_serializer = signupSerializer(user)
+            user_data = user_serializer.data
+            
+            user_data.pop('password', None)
+
+            return Response({ 
                 'token': token.key,
                 'userId': str(user.id),
-                'email': user.email,
-                'username': user.username
+                'user': user_data
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class UserUpdateView(APIView):
+    def put(self, request):
+        userId = request.data.get('userId')
+        if not userId:
+            return Response({"error": "userId is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = get_object_or_404(userSignup, id=userId)
+        serializer = UserUpdateSerializer(user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return_serializer = signupSerializer(user)
+            return Response(return_serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def get(self, request):
+        userId = request.query_params.get('userId')
+        if not userId:
+            return Response({"error": "userId is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = get_object_or_404(userSignup, id=userId)
+        serializer = signupSerializer(user)
+        return Response(serializer.data)
+    
 class TrainModelView(APIView):
     def post(self, request):
         serializer = TaskSerializer(data=request.data)
         if serializer.is_valid():
             data = serializer.validated_data
-            print(data)
             dataset_url = data['dataset_url']
             hasChanged = data['hasChanged']
             task = data['task']
             mainType = data['mainType']
             archType = data['archType']
-            # arch_data = data.get('arch_data', {})
+            userId = data['userId']
             architecture = {}  # extract from arch.json
             hyperparameters = {}
-            uploaded_urls = {}
-            files_to_upload = ['sentence_transformer_model.zip',
-                               'question_embeddings.pt', 'answer_embeddings.pt']
+
+            user = get_object_or_404(userSignup, id=userId)
+            plan = user.plan
+
+            if type(user.trained_model_url) == str:
+                datasets = json.loads(user.trained_model_url)
+            else:
+                datasets = user.trained_model_url
+
+            start_time = time.time()
 
             if task == "regression" and not hasChanged:
-
                 if mainType == "DL":
                     architecture, hyperparameters = returnArch(
                         arch_data, task, mainType, archType)
                     model_trainer = RegressionDL(
                         dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
-                    model_obj = model_trainer.execute()
+                    executor = model_trainer.execute()
+            
+                    for epoch_info in executor:
+                        if isinstance(epoch_info, dict) and 'epoch' in epoch_info: # send this epoch info via sockets
+                            print(f"Epoch {epoch_info['epoch']}: Train Loss: {epoch_info['train_loss']:.4f}, Test Loss: {epoch_info['test_loss']:.4f}")
+                        else:
+                            model_obj = epoch_info
+                            print("Final model object:", epoch_info)
+                            break
+
                 elif mainType == "ML":
                     print(dataset_url, hasChanged, task, mainType, archType,)
                     architecture, hyperparameters = returnArch(
@@ -243,6 +302,7 @@ class TrainModelView(APIView):
                     print(dataset_url, hasChanged, task, mainType,
                           archType, architecture, hyperparameters)
                     model_obj = model_trainer.execute()
+
             elif task == "regression" and hasChanged:
                 architecture = data['arch_data'].get('architecture', [])
                 hyperparameters = data['arch_data'].get('hyperparameters', {})
@@ -320,6 +380,28 @@ class TrainModelView(APIView):
                 )
 
                 model_obj = model.execute()
+    
+            end_time = time.time()
+            deltaTime = (end_time - start_time) / (60 * 60)
+
+            print("Came here")
+            datasets.append(model_obj)
+            size = model_obj["size"]
+            cpu_hours_used = float(user.cpu_hours_used)    
+            gpu_hours_used = float(user.gpu_hours_used)
+
+            if plan == "free" or plan == "researcher" or plan == "basic":
+                cpu_hours_used += deltaTime
+                user.cpu_hours_used = cpu_hours_used
+            else:
+                gpu_hours_used += deltaTime
+                user.gpu_hours_used = gpu_hours_used
+                user.save()
+
+            user.s3_storage_used = float(user.s3_storage_used) + size
+            user.trained_model_url = datasets
+
+            user.save()
 
             result_serializer = ResultSerializer({'model_obj': model_obj})
             return Response(result_serializer.data, status=status.HTTP_200_OK)

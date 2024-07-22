@@ -74,9 +74,24 @@ class signupSerializer(CountryFieldMixin, serializers.ModelSerializer):
                 return value
         return value if isinstance(value, list) else []
     
+class UserUpdateSerializer(serializers.ModelSerializer):
+    userId = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = userSignup
+        exclude = ['password', 'username', 'email']  
+        read_only_fields = ['id', 's3_storage_used', 'cpu_hours_used', 'gpu_hours_used']  
+
+    def update(self, instance, validated_data):
+        validated_data.pop('userId', None)  
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
 
 class DatasetUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
+    userId = serializers.CharField()
 
 class DatasetSerializer(serializers.ModelSerializer):
     class Meta:
@@ -89,6 +104,7 @@ class TaskSerializer(serializers.Serializer):
     task = serializers.ChoiceField(choices=['regression'])
     mainType = serializers.ChoiceField(choices=['DL', 'ML'])
     archType = serializers.CharField()
+    userId = serializers.CharField()
     arch_data = serializers.JSONField(required=False)
 
 class ResultSerializer(serializers.Serializer):
