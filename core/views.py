@@ -217,7 +217,7 @@ class TrainModelView(APIView):
                     model_obj = model_trainer.execute()
                 elif mainType == "ML":
                     architecture, hyperparameters = returnArch(arch_data, task, mainType, archType)
-                    model_trainer = MLTrainer(dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
+                    model_trainer = ClassificationML(dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
                     model_obj = model_trainer.execute()
             elif task == "classification" and hasChanged:
                 if mainType == "DL":
@@ -225,7 +225,7 @@ class TrainModelView(APIView):
                     model_obj = model_trainer.execute()
                 elif mainType == "ML":
                     architecture, hyperparameters = returnArch(arch_data, task, mainType, archType)
-                    model_trainer = MLTrainer(dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
+                    model_trainer = ClassificationML(dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
                     model_obj = model_trainer.execute()
                 
             if task=="image":
