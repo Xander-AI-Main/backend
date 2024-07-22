@@ -1,7 +1,7 @@
 from django.contrib import admin
-from .models import userSignup,S3StorageUsage,Dataset
+from .models import userSignup, Dataset
 
 admin.site.register(userSignup)
-admin.site.register(S3StorageUsage)
+# admin.site.register(S3StorageUsage)
 # admin.site.register(ZippedFile)
 admin.site.register(Dataset)

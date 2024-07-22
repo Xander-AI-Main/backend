@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django_countries.fields import CountryField
 import pycountry
+import json
 
 class userSignup (AbstractUser):
     phone_number = models.CharField(max_length=15, blank=False, null=False)
@@ -25,6 +26,14 @@ class userSignup (AbstractUser):
             if country:
                 currency = pycountry.currencies.get(numeric=country.numeric)
                 self.currency = currency.alpha_3 if currency else None
+
+        if isinstance(self.dataset_url, str):
+            self.dataset_url = json.loads(self.dataset_url)
+        if isinstance(self.trained_model_url, str):
+            self.trained_model_url = json.loads(self.trained_model_url)
+        if isinstance(self.team, str):
+            self.team = json.loads(self.team)
+            
         super().save(*args, **kwargs)
         
 class Dataset(models.Model):
@@ -35,5 +44,5 @@ class Dataset(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
     hyperparameter=models.JSONField(default=list)
 
-class S3StorageUsage(models.Model):
-    used_gb = models.FloatField(default=0)
+# class S3StorageUsage(models.Model):
+#     used_gb = models.FloatField(default=0)

@@ -40,7 +40,9 @@ INSTALLED_APPS = [
     'core',
     'rest_framework',
     'django_countries',
-    'pycountry'
+    'pycountry',
+    'djongo',
+    'rest_framework.authtoken'
 ]
 
 MIDDLEWARE = [
@@ -77,10 +79,20 @@ WSGI_APPLICATION = 'xander.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': BASE_DIR / 'db.sqlite3',
+#     }
+# }
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'djongo',
+        'NAME': 'xander',
+        'CLIENT': {
+            'host': 'mongodb+srv://atulitgaur:sanjayashaS28@cluster0.zbmbdhh.mongodb.net/xander',
+        }
     }
 }
 

@@ -8,6 +8,8 @@ from sklearn.neighbors import NearestNeighbors
 from sentence_transformers import SentenceTransformer, util
 import shutil
 import torch
+import zipfile
+import uuid
 
 class Chatbot:
     def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters):
@@ -81,3 +83,31 @@ class Chatbot:
                 print(f"An error occurred: {str(e)}")
         
         return uploaded_urls
+    
+    def execute(self):
+        self.qa_data = self.fetch_json_data(self.dataset_url)
+        
+        self.questions = [item['question'] for item in self.qa_data]
+        self.answers = [item['answer'] for item in self.qa_data]
+
+        question_embeddings, answer_embeddings = self.encode_embeddings()
+
+        torch.save(question_embeddings, 'question_embeddings.pt')
+        torch.save(answer_embeddings, 'answer_embeddings.pt')
+        
+        model_path = 'sentence_transformer_model.zip'
+        with zipfile.ZipFile(model_path, 'w') as model_zip:
+            for file in ['question_embeddings.pt', 'answer_embeddings.pt']:
+                model_zip.write(file)
+
+        uploaded_urls = self.upload_files_to_s3()
+
+        _id = str(uuid.uuid4())
+        model_obj = {
+            "question_embeddings_url": uploaded_urls.get('question_embeddings.pt', ""),
+            "answer_embeddings_url": uploaded_urls.get('answer_embeddings.pt', ""),
+            "model_url": uploaded_urls.get(model_path, ""),
+            "id": _id
+        }
+
+        return model_obj
