@@ -265,7 +265,7 @@ class TrainModelView(APIView):
             userId = data['userId']
             architecture = {}  # extract from arch.json
             hyperparameters = {}
-
+                
             user = get_object_or_404(userSignup, id=userId)
             plan = user.plan
 

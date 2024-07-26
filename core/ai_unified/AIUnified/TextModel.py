@@ -92,7 +92,7 @@ class TextModel:
 
     def create_model(self):
         self.model = tf.keras.Sequential()
-        if self.task == "classification" and self.hasChanged:
+        if self.hasChanged:
             for arch in self.architecture:
                 if arch['layer'] == "Embedding":
                     self.model.add(Embedding(input_dim=arch['input_dim'], output_dim=arch['output_dim'], input_length=arch['input_length']))

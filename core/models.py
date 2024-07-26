@@ -5,8 +5,8 @@ import pycountry
 import json
 
 class userSignup (AbstractUser):
-    phone_number = models.CharField(max_length=15, blank=False, null=False)
-    country = CountryField(blank_label='(select country)',blank=False,null=False)
+    phone_number = models.CharField(max_length=15, blank=True, null=False)
+    country = CountryField(blank_label='(select country)',blank=True,null=False)
     currency = models.CharField(max_length=3, blank=True, null=True)
     workin_in_team=models.BooleanField(default=False)
     s3_storage_used=models.FloatField(default=0.0)
@@ -14,7 +14,7 @@ class userSignup (AbstractUser):
     gpu_hours_used=models.FloatField(default=0,blank=False, null=False)
     dataset_url=models.JSONField(default=list)
     trained_model_url=models.JSONField(default=list)
-    plan=models.TextField()
+    plan=models.TextField(default='', blank=True, null=False)
     max_storage_allowed=models.BigIntegerField(default=0,blank=False, null=False)
     max_cpu_hours_allowed=models.IntegerField(default=0,blank=False, null=False) 
     max_gpu_hours_allowed=models.IntegerField(default=0,blank=False, null=False) 
