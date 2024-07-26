@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import AbstractUser
 from django_countries.fields import CountryField
 import pycountry
+from decimal import Decimal
 import json
 
 class userSignup (AbstractUser):
@@ -10,8 +11,8 @@ class userSignup (AbstractUser):
     currency = models.CharField(max_length=3, blank=True, null=True)
     workin_in_team=models.BooleanField(default=False)
     s3_storage_used=models.FloatField(default=0.0)
-    cpu_hours_used=models.FloatField(default=0,blank=False, null=False)
-    gpu_hours_used=models.FloatField(default=0,blank=False, null=False)
+    cpu_hours_used=models.FloatField(default=0.0)
+    gpu_hours_used=models.FloatField(default=0.0)
     dataset_url=models.JSONField(default=list)
     trained_model_url=models.JSONField(default=list)
     plan=models.TextField()
@@ -38,11 +39,11 @@ class userSignup (AbstractUser):
         
 class Dataset(models.Model):
     name = models.CharField(max_length=255)
-    size_gb = models.FloatField()
+    size_gb = models.FloatField(default=0.0)
     task_type = models.CharField(max_length=255)
     architecture_details = models.TextField()
     uploaded_at = models.DateTimeField(auto_now_add=True)
     hyperparameter=models.JSONField(default=list)
 
 # class S3StorageUsage(models.Model):
-#     used_gb = models.FloatField(default=0)
+#     used_gb = models.DecimalField(default=0)

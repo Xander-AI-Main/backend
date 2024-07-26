@@ -90,6 +90,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'djongo',
         'NAME': 'xander',
+        'ENFORCE_SCHEMA': False,
         'CLIENT': {
             'host': 'mongodb+srv://atulitgaur:sanjayashaS28@cluster0.zbmbdhh.mongodb.net/xander',
         }

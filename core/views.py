@@ -31,6 +31,8 @@ from rest_framework.authtoken.models import Token
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 import time
+import socket
+
 
 def returnArch(data, task, mainType, archType):
     current_task = data[task]
@@ -252,6 +254,19 @@ class UserUpdateView(APIView):
         serializer = signupSerializer(user)
         return Response(serializer.data)
     
+class SocketClient:
+    def __init__(self):
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client_socket.connect(('localhost', 12345))
+
+    def send_epoch_info(self, epoch_info):
+        data = json.dumps(epoch_info)
+        self.client_socket.send(data.encode())
+
+    def close(self):
+        self.client_socket.close()
+        
+            
 class TrainModelView(APIView):
     def post(self, request):
         serializer = TaskSerializer(data=request.data)
@@ -275,6 +290,7 @@ class TrainModelView(APIView):
                 datasets = user.trained_model_url
 
             start_time = time.time()
+            socket_client = SocketClient()
 
             if task == "regression" and not hasChanged:
                 if mainType == "DL":
@@ -286,6 +302,7 @@ class TrainModelView(APIView):
             
                     for epoch_info in executor:
                         if isinstance(epoch_info, dict) and 'epoch' in epoch_info: # send this epoch info via sockets
+                            socket_client.send_epoch_info(epoch_info)
                             print(f"Epoch {epoch_info['epoch']}: Train Loss: {epoch_info['train_loss']:.4f}, Test Loss: {epoch_info['test_loss']:.4f}")
                         else:
                             model_obj = epoch_info
@@ -310,6 +327,14 @@ class TrainModelView(APIView):
                     model_trainer = RegressionDL(
                         dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
                     model_obj = model_trainer.execute()
+                    for epoch_info in executor:
+                        if isinstance(epoch_info, dict) and 'epoch' in epoch_info:# send this epoch info via sockets
+                            socket_client.send_epoch_info(epoch_info)
+                            print(f"Epoch {epoch_info['epoch']}: Train Loss: {epoch_info['train_loss']:.4f}, Test Loss: {epoch_info['test_loss']:.4f}")
+                        else:
+                            model_obj = epoch_info
+                            print("Final model object:", epoch_info)
+                            break
                 elif mainType == "ML":
                     model_trainer = RegressionML(
                         dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
@@ -322,6 +347,14 @@ class TrainModelView(APIView):
                     model_trainer = ClassificationDL(
                         dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
                     model_obj = model_trainer.execute()
+                    for epoch_info in executor:
+                        if isinstance(epoch_info, dict) and 'epoch' in epoch_info: # send this epoch info via sockets
+                            socket_client.send_epoch_info(epoch_info)
+                            print(f"Epoch {epoch_info['epoch']}: Train Loss: {epoch_info['train_loss']:.4f}, Test Loss: {epoch_info['test_loss']:.4f}")
+                        else:
+                            model_obj = epoch_info
+                            print("Final model object:", epoch_info)
+                            break
                 elif mainType == "ML":
                     architecture, hyperparameters = returnArch(
                         arch_data, task, mainType, archType)
@@ -333,6 +366,14 @@ class TrainModelView(APIView):
                     model_trainer = ClassificationDL(
                         dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
                     model_obj = model_trainer.execute()
+                    for epoch_info in executor:
+                        if isinstance(epoch_info, dict) and 'epoch' in epoch_info: # send this epoch info via sockets
+                            socket_client.send_epoch_info(epoch_info)
+                            print(f"Epoch {epoch_info['epoch']}: Train Loss: {epoch_info['train_loss']:.4f}, Test Loss: {epoch_info['test_loss']:.4f}")
+                        else:
+                            model_obj = epoch_info
+                            print("Final model object:", epoch_info)
+                            break
                 elif mainType == "ML":
                     architecture, hyperparameters = returnArch(
                         arch_data, task, mainType, archType)
@@ -347,6 +388,14 @@ class TrainModelView(APIView):
                 trainer = ImageModelTrainer(
                     dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
                 model_obj = trainer.execute()
+                for epoch_info in executor:
+                        if isinstance(epoch_info, dict) and 'epoch' in epoch_info: # send this epoch info via sockets
+                            socket_client.send_epoch_info(epoch_info)
+                            print(f"Epoch {epoch_info['epoch']}: Train Loss: {epoch_info['train_loss']:.4f}, Test Loss: {epoch_info['test_loss']:.4f}")
+                        else:
+                            model_obj = epoch_info
+                            print("Final model object:", epoch_info)
+                            break
 
                 if model_obj:
                     print(f"Model Object: {model_obj}")
@@ -363,6 +412,14 @@ class TrainModelView(APIView):
                     architecture=architecture,
                     hyperparameters=hyperparameters
                 )
+                for epoch_info in executor:
+                        if isinstance(epoch_info, dict) and 'epoch' in epoch_info: # send this epoch info via sockets
+                            socket_client.send_epoch_info(epoch_info)
+                            print(f"Epoch {epoch_info['epoch']}: Train Loss: {epoch_info['train_loss']:.4f}, Test Loss: {epoch_info['test_loss']:.4f}")
+                        else:
+                            model_obj = epoch_info
+                            print("Final model object:", epoch_info)
+                            break
 
                 model_obj = model.execute()
                 print(model_obj)
@@ -402,7 +459,8 @@ class TrainModelView(APIView):
             user.trained_model_url = datasets
 
             user.save()
-
+            socket_client.close()
+            
             result_serializer = ResultSerializer({'model_obj': model_obj})
             return Response(result_serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
