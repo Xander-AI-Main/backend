@@ -31,6 +31,8 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'channels',
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -43,8 +45,16 @@ INSTALLED_APPS = [
     'pycountry',
     'djongo',
     'rest_framework.authtoken',
-    'corsheaders'
+    'corsheaders',
 ]
+
+ASGI_APPLICATION = 'xander.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -118,6 +128,7 @@ DATABASES = {
     'default': {
         'ENGINE': 'djongo',
         'NAME': 'xander',
+        'ENFORCE_SCHEMA': False,
         'CLIENT': {
             'host': 'mongodb+srv://atulitgaur:sanjayashaS28@cluster0.zbmbdhh.mongodb.net/xander',
         }

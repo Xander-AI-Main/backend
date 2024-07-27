@@ -31,6 +31,12 @@ from rest_framework.authtoken.models import Token
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 import time
+import socket
+import threading
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
+import socketio
+
 
 def returnArch(data, task, mainType, archType):
     current_task = data[task]
@@ -186,6 +192,7 @@ class DatasetUploadView(APIView):
             print(f"An error occurred: {str(e)}")
             return None
 
+
 class signupViewset(viewsets.ModelViewSet):
     queryset = userSignup.objects.all()
     serializer_class = signupSerializer
@@ -195,8 +202,8 @@ class signupViewset(viewsets.ModelViewSet):
         if serializer.is_valid():
             user = serializer.save()
             response_serializer = self.get_serializer(user)
-            
-            userId = str(user.id)  
+
+            userId = str(user.id)
             return Response({
                 "message": "User created successfully",
                 "userId": userId,
@@ -204,11 +211,13 @@ class signupViewset(viewsets.ModelViewSet):
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 def returnArch(data, task, mainType, archType):
     current_task = arch_data[task]
     for i in current_task:
         if i["type"] == mainType and i["archType"] == archType:
             return i["architecture"], i["hyperparameters"]
+
 
 class LoginView(APIView):
     def post(self, request):
@@ -216,18 +225,19 @@ class LoginView(APIView):
         if serializer.is_valid():
             user = serializer.validated_data
             token, created = Token.objects.get_or_create(user=user)
-            
+
             user_serializer = signupSerializer(user)
             user_data = user_serializer.data
-            
+
             user_data.pop('password', None)
 
-            return Response({ 
+            return Response({
                 'token': token.key,
                 'userId': str(user.id),
                 'user': user_data
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 
 class UserUpdateView(APIView):
     def put(self, request):
@@ -236,7 +246,8 @@ class UserUpdateView(APIView):
             return Response({"error": "userId is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         user = get_object_or_404(userSignup, id=userId)
-        serializer = UserUpdateSerializer(user, data=request.data, partial=True)
+        serializer = UserUpdateSerializer(
+            user, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return_serializer = signupSerializer(user)
@@ -251,7 +262,31 @@ class UserUpdateView(APIView):
         user = get_object_or_404(userSignup, id=userId)
         serializer = signupSerializer(user)
         return Response(serializer.data)
-    
+
+
+class SocketClient:
+    def __init__(self):
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client_socket.connect(('localhost', 12345))
+
+    def send_epoch_info(self, epoch_info):
+        data = json.dumps(epoch_info)
+        self.client_socket.send(data.encode())
+
+    def close(self):
+        self.client_socket.close()
+
+    def start_server():
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind(('localhost', 12345))
+        server_socket.listen(1)
+
+        print("Server is waiting for a connection...")
+
+
+sio = socketio.Client()
+
+
 class TrainModelView(APIView):
     def post(self, request):
         serializer = TaskSerializer(data=request.data)
@@ -264,8 +299,8 @@ class TrainModelView(APIView):
             archType = data['archType']
             userId = data['userId']
             architecture = {}  # extract from arch.json
-            hyperparameters = {}
-                
+            hyperparameters = data['hyperparameters']
+
             user = get_object_or_404(userSignup, id=userId)
             plan = user.plan
 
@@ -275,26 +310,42 @@ class TrainModelView(APIView):
                 datasets = user.trained_model_url
 
             start_time = time.time()
+            channel_layer = get_channel_layer()
 
             if task == "regression" and not hasChanged:
                 if mainType == "DL":
-                    architecture, hyperparameters = returnArch(
+                    architecture = returnArch(
                         arch_data, task, mainType, archType)
                     model_trainer = RegressionDL(
                         dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
                     executor = model_trainer.execute()
-            
+
                     for epoch_info in executor:
-                        if isinstance(epoch_info, dict) and 'epoch' in epoch_info: # send this epoch info via sockets
-                            print(f"Epoch {epoch_info['epoch']}: Train Loss: {epoch_info['train_loss']:.4f}, Test Loss: {epoch_info['test_loss']:.4f}")
+                        if isinstance(epoch_info, dict) and 'epoch' in epoch_info:
+                            async_to_sync(channel_layer.group_send)(
+                                f"user_{userId}",
+                                {
+                                    'type': 'send_update',
+                                    'text': json.dumps(epoch_info)
+                                }
+                            )
+                            print(
+                                f"Epoch {epoch_info['epoch']}: Train Loss: {epoch_info['train_loss']:.4f}, Test Loss: {epoch_info['test_loss']:.4f}")
                         else:
                             model_obj = epoch_info
+                            async_to_sync(channel_layer.group_send)(
+                                f"user_{userId}",
+                                {
+                                    'type': 'send_update',
+                                    'text': json.dumps(epoch_info)
+                                }
+                            )
                             print("Final model object:", epoch_info)
                             break
 
                 elif mainType == "ML":
                     print(dataset_url, hasChanged, task, mainType, archType,)
-                    architecture, hyperparameters = returnArch(
+                    architecture = returnArch(
                         arch_data, task, mainType, archType)
 
                     model_trainer = RegressionML(
@@ -310,6 +361,29 @@ class TrainModelView(APIView):
                     model_trainer = RegressionDL(
                         dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
                     model_obj = model_trainer.execute()
+                    for epoch_info in executor:
+                        if isinstance(epoch_info, dict) and 'epoch' in epoch_info:
+                            async_to_sync(channel_layer.group_send)(
+                                f"user_{userId}",
+                                {
+                                    'type': 'send_update',
+                                    'text': json.dumps(epoch_info)
+                                }
+                            )
+                            print(
+                                f"Epoch {epoch_info['epoch']}: Train Loss: {epoch_info['train_loss']:.4f}, Test Loss: {epoch_info['test_loss']:.4f}")
+                        else:
+                            model_obj = epoch_info
+                            async_to_sync(channel_layer.group_send)(
+                                f"user_{userId}",
+                                {
+                                    'type': 'send_update',
+                                    'text': json.dumps(epoch_info)
+                                }
+                            )
+                            print("Final model object:", epoch_info)
+                            break
+
                 elif mainType == "ML":
                     model_trainer = RegressionML(
                         dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
@@ -317,22 +391,67 @@ class TrainModelView(APIView):
 
             if task == "classification" and not hasChanged:
                 if mainType == "DL":
-                    architecture, hyperparameters = returnArch(
+                    architecture = returnArch(
                         arch_data, task, mainType, archType)
                     model_trainer = ClassificationDL(
                         dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
                     model_obj = model_trainer.execute()
+                    for epoch_info in executor:
+                        if isinstance(epoch_info, dict) and 'epoch' in epoch_info:
+                            async_to_sync(channel_layer.group_send)(
+                                f"user_{userId}",
+                                {
+                                    'type': 'send_update',
+                                    'text': json.dumps(epoch_info)
+                                }
+                            )
+                            
+                        else:
+                            model_obj = epoch_info
+                            async_to_sync(channel_layer.group_send)(
+                                f"user_{userId}",
+                                {
+                                    'type': 'send_update',
+                                    'text': json.dumps(epoch_info)
+                                }
+                            )
+                            print("Final model object:", epoch_info)
+                            break
                 elif mainType == "ML":
                     architecture, hyperparameters = returnArch(
                         arch_data, task, mainType, archType)
                     model_trainer = ClassificationML(
                         dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
                     model_obj = model_trainer.execute()
+                    
             elif task == "classification" and hasChanged:
                 if mainType == "DL":
                     model_trainer = ClassificationDL(
                         dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
                     model_obj = model_trainer.execute()
+
+                    for epoch_info in executor:
+                        if isinstance(epoch_info, dict) and 'epoch' in epoch_info:
+                            async_to_sync(channel_layer.group_send)(
+                                f"user_{userId}",
+                                {
+                                    'type': 'send_update',
+                                    'text': json.dumps(epoch_info)
+                                }
+                            )
+                            
+                        else:
+                            model_obj = epoch_info
+                            async_to_sync(channel_layer.group_send)(
+                                f"user_{userId}",
+                                {
+                                    'type': 'send_update',
+                                    'text': json.dumps(epoch_info)
+                                }
+                            )
+                            print("Final model object:", epoch_info)
+                            break
+
                 elif mainType == "ML":
                     architecture, hyperparameters = returnArch(
                         arch_data, task, mainType, archType)
@@ -341,12 +460,33 @@ class TrainModelView(APIView):
                     model_obj = model_trainer.execute()
 
             if task == "image":
-                architecture, hyperparameters = returnArch(
+                architecture = returnArch(
                     arch_data, task, mainType, archType)
 
                 trainer = ImageModelTrainer(
                     dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
                 model_obj = trainer.execute()
+                for epoch_info in executor:
+                        if isinstance(epoch_info, dict) and 'epoch' in epoch_info:
+                            async_to_sync(channel_layer.group_send)(
+                                f"user_{userId}",
+                                {
+                                    'type': 'send_update',
+                                    'text': json.dumps(epoch_info)
+                                }
+                            )
+                            
+                        else:
+                            model_obj = epoch_info
+                            async_to_sync(channel_layer.group_send)(
+                                f"user_{userId}",
+                                {
+                                    'type': 'send_update',
+                                    'text': json.dumps(epoch_info)
+                                }
+                            )
+                            print("Final model object:", epoch_info)
+                            break
 
                 if model_obj:
                     print(f"Model Object: {model_obj}")
@@ -354,40 +494,63 @@ class TrainModelView(APIView):
                     print("Failed to train and upload the model.")
 
             if task == "text":
+                architecture = returnArch(
+                    arch_data, task, mainType, archType)
                 model = TextModel(
-                    dataset_url='train.csv',
-                    hasChanged=False,
+                    dataset_url=dataset_url,
+                    hasChanged=hasChanged,
                     task='text',
-                    mainType='topic classification',
-                    archType='Default',
+                    mainType=mainType,
+                    archType=archType,
                     architecture=architecture,
                     hyperparameters=hyperparameters
                 )
+                executor = model.execute()
 
-                model_obj = model.execute()
-                print(model_obj)
+                for epoch_info in executor:
+                    # send this epoch info via sockets
+                    if isinstance(epoch_info, dict) and 'epoch' in epoch_info:
+                        # socket_client.send_epoch_info(epoch_info)
+                        print(epoch_info)
+                        async_to_sync(channel_layer.group_send)(
+                                f"user_{userId}",
+                                {
+                                    'type': 'send_update',
+                                    'text': json.dumps(epoch_info)
+                                }
+                            )
+                        
+                    else:
+                        model_obj = epoch_info
+                        async_to_sync(channel_layer.group_send)(
+                                f"user_{userId}",
+                                {
+                                    'type': 'send_update',
+                                    'text': json.dumps(epoch_info)
+                                }
+                            )
+                        print("Final model object:", epoch_info)
+                        break
 
             if task == "chatbot":
-
                 model = Chatbot(
-                    dataset_url='train.csv',
-                    hasChanged=False,
-                    task='text',
-                    mainType='topic classification',
-                    archType='Default',
+                    dataset_url=dataset_url,
+                    hasChanged=hasChanged,
+                    task='chatbot',
+                    mainType=mainType,
+                    archType=archType,
                     architecture=architecture,
                     hyperparameters=hyperparameters
                 )
 
                 model_obj = model.execute()
-    
+
             end_time = time.time()
             deltaTime = (end_time - start_time) / (60 * 60)
 
-            print("Came here")
             datasets.append(model_obj)
             size = model_obj["size"]
-            cpu_hours_used = float(user.cpu_hours_used)    
+            cpu_hours_used = float(user.cpu_hours_used)
             gpu_hours_used = float(user.gpu_hours_used)
 
             if plan == "free" or plan == "researcher" or plan == "basic":
@@ -402,6 +565,7 @@ class TrainModelView(APIView):
             user.trained_model_url = datasets
 
             user.save()
+            # socket_client.close()
 
             result_serializer = ResultSerializer({'model_obj': model_obj})
             return Response(result_serializer.data, status=status.HTTP_200_OK)

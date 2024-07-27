@@ -139,8 +139,8 @@ class RegressionDL:
                 "Model is not defined. Please build a model first.")
 
         optimizer = 'adam'
-        epochs = self.hyperparameters.get('epochs', 10)
-        batch_size = self.hyperparameters.get('batch_size', 32)
+        epochs = int(self.hyperparameters['epochs'])
+        batch_size = int(self.hyperparameters['batch_size'])
 
         if self.task_type == 'regression':
             loss = 'mean_squared_error'
@@ -247,7 +247,7 @@ class RegressionDL:
         training_thread.start()
 
         epochs_completed = 0
-        while epochs_completed < self.hyperparameters['epochs']:
+        while epochs_completed < int(self.hyperparameters['epochs']):
             try:
                 epoch_info = self.epoch_info_queue.get(timeout=1) 
                 yield epoch_info

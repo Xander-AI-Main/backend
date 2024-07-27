@@ -116,8 +116,8 @@ class TextModel:
         self.model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001), loss='categorical_crossentropy', metrics=['accuracy'])
 
     def train_model(self):
-        self.batch_size = self.hyperparameters.get("batch_size", 64)
-        self.epochs = self.hyperparameters.get("epochs", 10)
+        self.batch_size = int(self.hyperparameters["batch_size"])
+        self.epochs = int(self.hyperparameters["epochs"])
         self.epoch_data = []
 
         class CustomCallback(Callback):

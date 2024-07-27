@@ -101,11 +101,12 @@ class DatasetSerializer(serializers.ModelSerializer):
 class TaskSerializer(serializers.Serializer):
     dataset_url = serializers.URLField()
     hasChanged = serializers.BooleanField()
-    task = serializers.ChoiceField(choices=['regression'])
-    mainType = serializers.ChoiceField(choices=['DL', 'ML'])
+    task = serializers.CharField()
+    mainType = serializers.CharField()
     archType = serializers.CharField()
     userId = serializers.CharField()
     arch_data = serializers.JSONField(required=False)
+    hyperparameters = serializers.JSONField(required=False)
 
 class ResultSerializer(serializers.Serializer):
     model_obj = serializers.JSONField()
