@@ -13,7 +13,7 @@ import os
 import uuid
 import queue
 import threading
-
+import random
 
 class RegressionDL:
     def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters):
@@ -27,8 +27,8 @@ class RegressionDL:
         self.task_type = task
         self.model = None
         self.scaler = StandardScaler()
-        self.model_file_path = 'model.h5'
-        self.scaler_file_path = 'scaler.pkl'
+        self.model_file_path = f'model{str(uuid.uuid4())}.h5'
+        self.scaler_file_path = f'scaler{str(uuid.uuid4())}.pkl'
         self.api_url = 'https://s3-api-uat.idesign.market/api/upload'
         self.bucket_name = 'idesign-quotation'
         self.epoch_info_queue = queue.Queue()
@@ -263,6 +263,86 @@ class RegressionDL:
         model_url, scaler_url = self.upload_files_to_api()
         
         _id = str(uuid.uuid4())
+        df = pd.read_csv(self.dataset_url)
+        data = df.iloc[int(random.random() * len(df.values.tolist()))].tolist()[0:-1]
+        formatted_dat = [f"'{item}'" if isinstance(item, str) else str(item) for item in data]
+
+        interference_code = f''' 
+import numpy as np
+import tensorflow as tf
+import joblib
+import requests
+import io
+import pandas as pd
+
+                    
+model_url = '{model_url}'    
+scaler_url = '{scaler_url}'  
+dataset_url = '{self.dataset_url}'  
+input_data = [{', '.join(formatted_dat)}] # your input data
+                    
+def download_file(url, local_path):
+    response = requests.get(url)
+    if response.status_code == 200:
+        with open(local_path, 'wb') as f:
+            f.write(response.content)
+    else:
+        print("Failed to download url: " + str(response.status_code))
+
+def load_model_from_local(path):
+    try:
+        model = tf.keras.models.load_model(path)
+        return model
+    except Exception as e:
+        print("Error loading model from path: " +  str(e))
+        return None
+
+def load_scaler(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        scaler_content = response.content
+        try:
+            scaler = joblib.load(io.BytesIO(scaler_content))
+            return scaler
+        except Exception as e:
+            return None
+    else:
+        return None
+
+# Download the model and scaler
+model_path = model_url.split('/')[-1]
+download_file(model_url, model_path)
+
+scaler = load_scaler(scaler_url)
+
+# Load the model from the local file
+model = load_model_from_local(model_path)
+
+if model and scaler:
+    def preprocess_input(data, scaler, categorical_columns, column_names):
+        df = pd.DataFrame([data], columns=column_names)
+        df = pd.get_dummies(df, columns=categorical_columns)
+        print(scaler.feature_names_in_)
+        df = df.reindex(columns=scaler.feature_names_in_, fill_value=0)
+        data_scaled = scaler.transform(df)
+        return data_scaled
+
+    def make_predictions(model, data_scaled):
+        predictions = model.predict(data_scaled)
+        return predictions
+
+    df = pd.read_csv(dataset_url)
+    column_names = df.columns.drop(df.columns[-1])
+    categorical_columns = df.select_dtypes(include=['object']).columns
+
+    data_scaled = preprocess_input(input_data, scaler, categorical_columns, column_names)
+    predictions = make_predictions(model, data_scaled)
+
+    print(predictions)
+else:
+    print("Failed to load model or scaler.")
+
+'''
         model_obj = {
             "modelUrl": model_url if model_url and scaler_url else "",
             "size": os.path.getsize(self.model_file_path) / (1024 ** 3) if model_url and scaler_url else 0,
@@ -270,6 +350,12 @@ class RegressionDL:
             "helpers": [{"scaler": scaler_url}] if model_url and scaler_url else [],
             "modelArch": self.architecture,
             "hyperparameters": self.hyperparameters,
-            "epoch_data": self.epoch_data
+            "epoch_data": self.epoch_data,
+            "task": self.task_type,
+            "interferenceCode": interference_code
         }
+        os.remove(self.model_file_path)
+        os.remove(self.scaler_file_path)
         yield model_obj if model_url and scaler_url else None
+
+

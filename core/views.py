@@ -36,7 +36,7 @@ import threading
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import socketio
-
+import uuid
 
 def returnArch(data, task, mainType, archType):
     current_task = data[task]
@@ -44,7 +44,6 @@ def returnArch(data, task, mainType, archType):
     for i in current_task:
         if i["type"] == mainType and i["archType"] == archType:
             return i["architecture"], i["hyperparameters"]
-
 
 url = 'https://idesign-quotation.s3.ap-south-1.amazonaws.com/NO_COMPANYNAME/arch.json'
 
@@ -67,8 +66,10 @@ class DatasetUploadView(APIView):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             uploaded_file = serializer.validated_data['file']
+            print(uploaded_file.name)
+            name = uploaded_file.name.split('.')[0] + str(uuid.uuid4()) + '.' + uploaded_file.name.split('.')[1]
             userId = serializer.validated_data['userId']
-            file_path = default_storage.save(uploaded_file.name, uploaded_file)
+            file_path = default_storage.save(name, uploaded_file)
 
             file_size_bytes = uploaded_file.size
             file_size_gb = file_size_bytes / (1024 ** 3)
@@ -81,7 +82,7 @@ class DatasetUploadView(APIView):
             # s3_storage, created = S3StorageUsage.objects.get_or_create(id=1)
             # s3_storage.used_gb += file_size_gb
             # s3_storage.save()
-
+            print(file_path)
             task_type, hyperparameter, architecture_details = self.determine_task(
                 file_path)
 
@@ -113,6 +114,7 @@ class DatasetUploadView(APIView):
             user.dataset_url = datasets
             user.save()
 
+            os.remove(file_path)
             return Response(response_data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -123,23 +125,24 @@ class DatasetUploadView(APIView):
         architecture = []
         hyperparameters = {}
 
-        if file_type == 'application/zip':
+        if file_type == 'application/zip' or file_type == "application/x-zip-compressed":
             with zipfile.ZipFile(file_path, 'r') as zip_ref:
                 file_list = zip_ref.namelist()
                 if any(file.endswith('.mp3') for file in file_list):
-                    task_type = 'Audio'
+                    task_type = 'audio'
                     architecture_details = 'Audio processing architecture'
                     architecture, hyperparameters = returnArch(
                         arch_data, task_type, "DL", "default")
-
                 elif any(file.endswith(('.jpg', '.jpeg', '.png')) for file in file_list):
-                    task_type = 'Image'
+                    task_type = 'image'
                     architecture_details = 'Image processing architecture'
                     architecture, hyperparameters = returnArch(
                         arch_data, task_type, "DL", "default")
+                else:
+                    raise ValueError("No supported file types found in ZIP")
 
         elif file_type == 'application/json':
-            task_type = 'JSON'
+            task_type = 'chatbot'
             architecture_details = 'Chatbot architecture'
             architecture, hyperparameters = returnArch(
                 arch_data, task_type, "DL", "default")
@@ -155,7 +158,6 @@ class DatasetUploadView(APIView):
                     architecture_details = 'Regression model architecture'
                     architecture, hyperparameters = returnArch(
                         arch_data, task_type, "DL", "default")
-
                 else:
                     task_type = 'classification'
                     architecture_details = 'Classification model architecture'
@@ -210,7 +212,6 @@ class signupViewset(viewsets.ModelViewSet):
                 "user": response_serializer.data
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 def returnArch(data, task, mainType, archType):
     current_task = arch_data[task]
@@ -285,7 +286,6 @@ class SocketClient:
 
 
 sio = socketio.Client()
-
 
 class TrainModelView(APIView):
     def post(self, request):
@@ -395,7 +395,7 @@ class TrainModelView(APIView):
                         arch_data, task, mainType, archType)
                     model_trainer = ClassificationDL(
                         dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
-                    model_obj = model_trainer.execute()
+                    executor = model_trainer.execute()
                     for epoch_info in executor:
                         if isinstance(epoch_info, dict) and 'epoch' in epoch_info:
                             async_to_sync(channel_layer.group_send)(
@@ -428,7 +428,7 @@ class TrainModelView(APIView):
                 if mainType == "DL":
                     model_trainer = ClassificationDL(
                         dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
-                    model_obj = model_trainer.execute()
+                    executor = model_trainer.execute()
 
                     for epoch_info in executor:
                         if isinstance(epoch_info, dict) and 'epoch' in epoch_info:
@@ -465,7 +465,7 @@ class TrainModelView(APIView):
 
                 trainer = ImageModelTrainer(
                     dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
-                model_obj = trainer.execute()
+                executor = trainer.execute()
                 for epoch_info in executor:
                         if isinstance(epoch_info, dict) and 'epoch' in epoch_info:
                             async_to_sync(channel_layer.group_send)(
@@ -496,6 +496,7 @@ class TrainModelView(APIView):
             if task == "text":
                 architecture = returnArch(
                     arch_data, task, mainType, archType)
+                print(architecture)
                 model = TextModel(
                     dataset_url=dataset_url,
                     hasChanged=hasChanged,
@@ -548,6 +549,7 @@ class TrainModelView(APIView):
             end_time = time.time()
             deltaTime = (end_time - start_time) / (60 * 60)
 
+            print(model_obj)
             datasets.append(model_obj)
             size = model_obj["size"]
             cpu_hours_used = float(user.cpu_hours_used)
@@ -558,6 +560,8 @@ class TrainModelView(APIView):
                 user.cpu_hours_used = cpu_hours_used
             else:
                 gpu_hours_used += deltaTime
+                print(gpu_hours_used)
+                print(user.gpu_hours_used)
                 user.gpu_hours_used = gpu_hours_used
                 user.save()
 
@@ -567,6 +571,6 @@ class TrainModelView(APIView):
             user.save()
             # socket_client.close()
 
-            result_serializer = ResultSerializer({'model_obj': model_obj})
+            result_serializer = ResultSerializer(model_obj)
             return Response(result_serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

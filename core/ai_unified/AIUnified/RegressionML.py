@@ -78,8 +78,8 @@ class RegressionML:
         print(f"MSE: {self.mse}")
         
     def save_model(self):
-        model_filename = f'{self.task.lower()}_model.pkl'
-        scaler_filename = 'scaler.pkl'
+        model_filename = f'model{str(uuid.uuid4())}.pkl'
+        scaler_filename = f'scaler{str(uuid.uuid4())}.pkl'
         
         joblib.dump(self.model, model_filename)
         joblib.dump(self.scaler, scaler_filename)
@@ -138,7 +138,8 @@ class RegressionML:
                 "id": _id,
                 "helpers": [{"scaler": scaler_url}],
                 "modelArch": self.archType,
-                "hyperparameters": self.hyperparameters
+                "hyperparameters": self.hyperparameters,
+                "task": self.task_type
             }
             return model_obj
         else:
