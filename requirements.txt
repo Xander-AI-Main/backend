@@ -21,7 +21,6 @@ pymongo==3.12.3
 pytest-asyncio==0.21.1
 python-engineio==4.9.0
 python-socketio==5.11.2
-pythonnet==3.0.3
 requests==2.31.0
 requests-oauthlib==2.0.0
 requests-toolbelt==1.0.0
@@ -34,16 +33,12 @@ sanic-routing==0.7.2
 scikit-image==0.24.0
 scikit-learn==1.5.1
 scipy==1.11.4
-seaborn==0.13.2
 sentence-transformers
 sentry-sdk==1.14.0
 spacy
 spacy-legacy==3.0.12
 spacy-loggers==1.0.5
-SQLAlchemy==1.4.52
 sqlparse==0.2.4
-tensorboard
-tensorboard-data-server
 tensorflow
 tensorflow-estimator
 tensorflow-hub
