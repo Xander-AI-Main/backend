@@ -3,7 +3,6 @@ import zipfile
 import pandas as pd
 import json
 import mimetypes
-import boto3
 import numpy as np
 from django.conf import settings
 from rest_framework import viewsets
@@ -57,6 +56,97 @@ try:
             f"Failed to retrieve data from {url}. Status code: {response.status_code}")
 except requests.exceptions.RequestException as e:
     print(f"Error fetching data from {url}: {e}")
+
+class signupViewset(viewsets.ModelViewSet):
+    queryset = userSignup.objects.all()
+    serializer_class = signupSerializer
+
+    def create(self, request):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.save()
+            response_serializer = self.get_serializer(user)
+
+            userId = str(user.id)
+            return Response({
+                "message": "User created successfully",
+                "userId": userId,
+                "user": response_serializer.data
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+def returnArch(data, task, mainType, archType):
+    current_task = arch_data[task]
+    for i in current_task:
+        if i["type"] == mainType and i["archType"] == archType:
+            return i["architecture"], i["hyperparameters"]
+
+
+class LoginView(APIView):
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data)
+        if serializer.is_valid():
+            user = serializer.validated_data
+            token, created = Token.objects.get_or_create(user=user)
+
+            user_serializer = signupSerializer(user)
+            user_data = user_serializer.data
+
+            user_data.pop('password', None)
+
+            return Response({
+                'token': token.key,
+                'userId': str(user.id),
+                'user': user_data
+            })
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class UserUpdateView(APIView):
+    def put(self, request):
+        userId = request.data.get('userId')
+        if not userId:
+            return Response({"error": "userId is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = get_object_or_404(userSignup, id=userId)
+        serializer = UserUpdateSerializer(
+            user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return_serializer = signupSerializer(user)
+            return Response(return_serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def get(self, request):
+        userId = request.query_params.get('userId')
+        if not userId:
+            return Response({"error": "userId is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = get_object_or_404(userSignup, id=userId)
+        serializer = signupSerializer(user)
+        return Response(serializer.data)
+
+
+class SocketClient:
+    def __init__(self):
+        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client_socket.connect(('localhost', 12345))
+
+    def send_epoch_info(self, epoch_info):
+        data = json.dumps(epoch_info)
+        self.client_socket.send(data.encode())
+
+    def close(self):
+        self.client_socket.close()
+
+    def start_server():
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind(('localhost', 12345))
+        server_socket.listen(1)
+
+        print("Server is waiting for a connection...")
+
+
+sio = socketio.Client()
 
 
 class DatasetUploadView(APIView):
@@ -193,99 +283,6 @@ class DatasetUploadView(APIView):
         except requests.exceptions.RequestException as e:
             print(f"An error occurred: {str(e)}")
             return None
-
-
-class signupViewset(viewsets.ModelViewSet):
-    queryset = userSignup.objects.all()
-    serializer_class = signupSerializer
-
-    def create(self, request):
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.save()
-            response_serializer = self.get_serializer(user)
-
-            userId = str(user.id)
-            return Response({
-                "message": "User created successfully",
-                "userId": userId,
-                "user": response_serializer.data
-            }, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-def returnArch(data, task, mainType, archType):
-    current_task = arch_data[task]
-    for i in current_task:
-        if i["type"] == mainType and i["archType"] == archType:
-            return i["architecture"], i["hyperparameters"]
-
-
-class LoginView(APIView):
-    def post(self, request):
-        serializer = LoginSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.validated_data
-            token, created = Token.objects.get_or_create(user=user)
-
-            user_serializer = signupSerializer(user)
-            user_data = user_serializer.data
-
-            user_data.pop('password', None)
-
-            return Response({
-                'token': token.key,
-                'userId': str(user.id),
-                'user': user_data
-            })
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-class UserUpdateView(APIView):
-    def put(self, request):
-        userId = request.data.get('userId')
-        if not userId:
-            return Response({"error": "userId is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        user = get_object_or_404(userSignup, id=userId)
-        serializer = UserUpdateSerializer(
-            user, data=request.data, partial=True)
-        if serializer.is_valid():
-            serializer.save()
-            return_serializer = signupSerializer(user)
-            return Response(return_serializer.data)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def get(self, request):
-        userId = request.query_params.get('userId')
-        if not userId:
-            return Response({"error": "userId is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        user = get_object_or_404(userSignup, id=userId)
-        serializer = signupSerializer(user)
-        return Response(serializer.data)
-
-
-class SocketClient:
-    def __init__(self):
-        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.client_socket.connect(('localhost', 12345))
-
-    def send_epoch_info(self, epoch_info):
-        data = json.dumps(epoch_info)
-        self.client_socket.send(data.encode())
-
-    def close(self):
-        self.client_socket.close()
-
-    def start_server():
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind(('localhost', 12345))
-        server_socket.listen(1)
-
-        print("Server is waiting for a connection...")
-
-
-sio = socketio.Client()
 
 class TrainModelView(APIView):
     def post(self, request):
