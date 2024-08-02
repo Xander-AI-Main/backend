@@ -12,6 +12,7 @@ import zipfile
 import uuid
 import os
 
+
 class Chatbot:
     def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters):
         self.dataset_url = dataset_url
@@ -37,7 +38,7 @@ class Chatbot:
     def fetch_json_data(self, url):
         try:
             response = requests.get(url)
-            response.raise_for_status() 
+            response.raise_for_status()
             data = response.json()
             return data
         except requests.exceptions.RequestException as e:
@@ -46,18 +47,22 @@ class Chatbot:
 
     def preprocess_text(self, text):
         text = text.lower()
-        text = re.sub(r'[^a-zA-Z0-9\s]', ' ', text)  
-        text = re.sub(r'\s+', ' ', text).strip()  
+        text = re.sub(r'[^a-zA-Z0-9\s]', ' ', text)
+        text = re.sub(r'\s+', ' ', text).strip()
         tokens = word_tokenize(text)
         tokens = [word for word in tokens if word not in self.stop_words]
         return ' '.join(tokens)
 
     def encode_embeddings(self):
-        processed_questions = [self.preprocess_text(question) for question in self.questions]
-        processed_answers = [self.preprocess_text(answer) for answer in self.answers]
+        processed_questions = [self.preprocess_text(
+            question) for question in self.questions]
+        processed_answers = [self.preprocess_text(
+            answer) for answer in self.answers]
 
-        question_embeddings = self.model.encode(processed_questions, convert_to_tensor=True)
-        answer_embeddings = self.model.encode(processed_answers, convert_to_tensor=True)
+        question_embeddings = self.model.encode(
+            processed_questions, convert_to_tensor=True)
+        answer_embeddings = self.model.encode(
+            processed_answers, convert_to_tensor=True)
 
         return question_embeddings, answer_embeddings
 
@@ -71,27 +76,28 @@ class Chatbot:
                 'bucketName': (None, self.bucket_name),
                 'files': open(file_path, 'rb')
             }
-            
+
             try:
                 response = requests.put(self.api_url, files=files)
                 response_data = response.json()
-                
+
                 if response.status_code == 200:
                     pdf_info = response_data.get('locations', [])[0]
                     initial_url = pdf_info
                     uploaded_urls[file_path] = initial_url
                     print(f"File {file_path} uploaded successfully.")
                 else:
-                    print(f"Failed to upload file {file_path}. Error: {response_data.get('error')}")
-            
+                    print(
+                        f"Failed to upload file {file_path}. Error: {response_data.get('error')}")
+
             except requests.exceptions.RequestException as e:
                 print(f"An error occurred: {str(e)}")
-        
+
         return uploaded_urls
-    
+
     def execute(self):
         self.qa_data = self.fetch_json_data(self.dataset_url)
-        
+
         self.questions = [item['question'] for item in self.qa_data]
         self.answers = [item['answer'] for item in self.qa_data]
 
@@ -201,14 +207,15 @@ print(f"Similarity Percentage: {{similarity_percentage:.2f}}%")
 
         '''
         model_obj = {
-            "modelUrl": model_path,
+            "modelUrl": "https://idesign-quotation.s3.ap-south-1.amazonaws.com/NO_COMPANYNAME/sentence_transformer_model.zip",
             "helpers": [{"question_embeddings": uploaded_urls.get(self.que_path, "")}, {"answer_embeddings": uploaded_urls.get(self.ans_path, "")}],
             "id": _id,
             "architecture": "Sentence Transformers",
             "hyperparameters": {},
             "size": os.path.getsize(self.que_path) / (1024 ** 3) + os.path.getsize(self.ans_path) / (1024 ** 3),
             "task": self.task,
-            "interferenceCode": interference_code
+            "interferenceCode": interference_code,
+            "datasetUrl": self.dataset_url
         }
 
         os.remove(self.que_path)

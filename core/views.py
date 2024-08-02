@@ -10,7 +10,7 @@ from django.core.files.storage import default_storage
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import DatasetUploadSerializer, DatasetSerializer, signupSerializer, TaskSerializer, ResultSerializer
+from .serializers import DatasetUploadSerializer, DatasetSerializer, signupSerializer, TaskSerializer, ResultSerializer, InterferenceSerializer
 from .models import Dataset, userSignup
 import requests
 import json
@@ -36,6 +36,14 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import socketio
 import uuid
+import random
+import numpy as np
+import tensorflow as tf
+import joblib
+import requests
+import io
+import pandas as pd
+import gridfs
 
 def returnArch(data, task, mainType, archType):
     current_task = data[task]
@@ -101,6 +109,38 @@ class LoginView(APIView):
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+class Interference(APIView):
+    def post(self, request):
+        user_id = request.data.get('userId')
+        model_id = request.data.get('modelId')
+        modelPath = request.data.get("modelPath")
+        scalerPath = request.data.get("scalerPath")
+        tokenizerPath = request.data.get("tokenizerPath")
+        labelEncoderPath = request.data.get("labelEncoderPath")
+        questionEmbeddingPath = request.data.get("questionEmbeddingPath")
+        answerEmbeddingPath = request.data.get("answerEmbeddingPath")
+
+        user = get_object_or_404(userSignup, id=user_id)
+        
+        return_serializer = signupSerializer(user)
+        data = return_serializer.data
+        
+        current_model = next((model for model in data["trained_model_url"] if model["id"] == model_id), None)
+        task = current_model["task"]
+        datasetUrl = task["datasetUrl"]
+
+        if not modelPath:
+            return Response({"error": "Model path is pequired"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if task == "regression":
+            df = pd.read_csv(self.dataset_url)
+            data = df.iloc[int(random.random() *
+                            len(df.values.tolist()))].tolist()[0:-1]
+            formatted_dat = [f"'{item}'" if isinstance(
+                item, str) else str(item) for item in data]
+
+        
+
 class UserUpdateView(APIView):
     def put(self, request):
         userId = request.data.get('userId')
@@ -147,7 +187,23 @@ class SocketClient:
 
 
 sio = socketio.Client()
+def isText (df, columns):
+    text = True
+    for column in columns:
+        if df[column].dtype == object:
+            text = True
+        else: 
+            text = False
+    return text
 
+def textToNum(finalColumn, x):
+    arr = finalColumn.unique()
+    indices = np.where(arr == x)[0]
+    if indices.size > 0:
+        index = indices[0]
+        return index
+    else:
+        return -1  
 
 class DatasetUploadView(APIView):
     serializer_class = DatasetUploadSerializer
@@ -240,8 +296,20 @@ class DatasetUploadView(APIView):
         else:
             df = pd.read_csv(file_path)
             num_columns = df.select_dtypes(include=[np.number]).shape[1]
+            all_columns = list(df.columns)
+            print(all_columns[-1])
             final_column = df.iloc[:, -1]
-            if final_column.dtype in [np.float64, np.int64]:
+
+            print(final_column.dtype)
+
+            if isText(df, all_columns) == True and df.apply(lambda col: col.str.len().mean() > 10).any():
+                task_type = 'text'
+                architecture_details = 'NLP architecture'
+                architecture, hyperparameters = returnArch(
+                    arch_data, task_type, "topic classification", "default")
+            else:
+                df[all_columns[-1]] = df[all_columns[-1]].apply(lambda x: textToNum(final_column, x))
+                final_column = df.iloc[:, -1]
                 unique_values = final_column.unique()
                 if len(unique_values) / len(final_column) > 0.1:
                     task_type = 'regression'
@@ -253,11 +321,8 @@ class DatasetUploadView(APIView):
                     architecture_details = 'Classification model architecture'
                     architecture, hyperparameters = returnArch(
                         arch_data, task_type, "DL", "default")
-            elif final_column.dtype == object and df.apply(lambda col: col.str.len().mean() > 10).any():
-                task_type = 'text'
-                architecture_details = 'NLP architecture'
-                architecture, hyperparameters = returnArch(
-                    arch_data, task_type, "topic classification", "default")
+                    
+
 
         return task_type, hyperparameters, architecture
 
@@ -571,3 +636,4 @@ class TrainModelView(APIView):
             result_serializer = ResultSerializer(model_obj)
             return Response(result_serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    

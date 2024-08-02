@@ -10,6 +10,7 @@ import uuid
 import queue
 import threading
 
+
 class ImageModelTrainer:
     def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters):
         self.dataset_url = dataset_url
@@ -108,6 +109,7 @@ class ImageModelTrainer:
 
     def train_model(self):
         self.epoch_data = []
+
         class CustomCallback(callbacks.Callback):
             def __init__(self, outer_instance):
                 super().__init__()
@@ -252,7 +254,8 @@ else:
                 "hyperparameters": self.hyperparameters,
                 "epoch_data": self.epoch_data,
                 "task": self.task,
-                "interferenceCode": interference_code
+                "interferenceCode": interference_code,
+                "datasetUrl": self.dataset_url
             }
             os.remove(self.model_path)
             os.remove(self.data_dir)

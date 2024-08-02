@@ -107,6 +107,11 @@ class TaskSerializer(serializers.Serializer):
     userId = serializers.CharField()
     arch_data = serializers.JSONField(required=False)
     hyperparameters = serializers.JSONField(required=False)
+        
+class InterferenceSerializer(serializers.Serializer):
+    userId = serializers.CharField()
+    modelId = serializers.CharField()
+    
 
 class ResultSerializer(serializers.Serializer):
     data = serializers.JSONField()

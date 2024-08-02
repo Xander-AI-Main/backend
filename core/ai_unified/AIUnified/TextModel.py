@@ -122,10 +122,10 @@ class TextModel:
             self.model.add(Embedding(input_dim=20000,
                            output_dim=100, input_length=100))
             self.model.add(Bidirectional(
-                LSTM(units=128, return_sequences=True, dropout=0.3, recurrent_dropout=0.3)))
-            self.model.add(Dropout(0.3))
-            self.model.add(LSTM(units=64, dropout=0.3,
-                           recurrent_dropout=0.3, kernel_regularizer=l2(0.01)))
+                LSTM(units=128, return_sequences=True, dropout=0.45, recurrent_dropout=0.45)))
+            self.model.add(Dropout(0.45))
+            self.model.add(LSTM(units=64, dropout=0.45,
+                           recurrent_dropout=0.45, kernel_regularizer=l2(0.01)))
             self.model.add(Dense(units=self.num_classes,
                            activation='softmax', kernel_regularizer=l2(0.01)))
 
@@ -356,7 +356,8 @@ else:
                 "hyperparameters": self.hyperparameters,
                 "epoch_data": self.epoch_data,
                 "task": self.task,
-                "interferenceCode": interference_code
+                "interferenceCode": interference_code,
+                "datasetUrl": self.dataset_url
             }
             os.remove(self.model_path)
             os.remove(self.tokenizer_path)

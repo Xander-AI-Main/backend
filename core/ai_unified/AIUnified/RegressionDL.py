@@ -66,7 +66,7 @@ class RegressionDL:
     def build_model(self):
         input_shape = (self.data.shape[1] - 1,)
         if self.archType == 'default':
-            self.build_dense_model(input_shape)
+            self.model = self.build_dense_model(input_shape)
         # elif self.archType == '4':
         #     self.build_cnn_model(input_shape)
         # elif self.archType == '5':
@@ -77,18 +77,14 @@ class RegressionDL:
             raise ValueError(
                 "Unsupported model type. Choose from 'dense', 'cnn', 'lstm', 'attention'.")
 
-    def build_dense_model(self, input_shape, layers=[128, 64, 32], activation='relu', output_activation=None):
+    def build_dense_model(self, input_shape, layers=[256, 128, 64, 32], activation='relu', output_activation=None):
         model = Sequential()
-        model.add(
-            Dense(layers[0], input_shape=input_shape, activation=activation))
+        model.add(Dense(layers[0], input_shape=input_shape, activation=activation, kernel_regularizer=tf.keras.regularizers.l2(0.01)))
+        model.add(tf.keras.layers.Dropout(0.4))
         for layer in layers[1:]:
-            model.add(Dense(layer, activation=activation))
-        if self.task_type == 'regression':
-            model.add(Dense(1, activation=output_activation))
-        else:
-            model.add(
-                Dense(len(np.unique(self.data[self.target_col])), activation='softmax'))
-        self.model = model
+            model.add(Dense(layer, activation=activation, kernel_regularizer=tf.keras.regularizers.l2(0.01)))
+            model.add(tf.keras.layers.Dropout(0.4))
+        model.add(Dense(1, activation=output_activation))
         return model
 
     # def build_cnn_model(self, input_shape, conv_layers=[(32, (3, 3)), (64, (3, 3))], dense_layers=[64], activation='relu', output_activation=None):
@@ -149,13 +145,16 @@ class RegressionDL:
             loss = 'sparse_categorical_crossentropy'
             metrics = ['accuracy']
 
-        self.model.compile(optimizer=optimizer, loss=loss, metrics=metrics)
+        optimizer = tf.keras.optimizers.Adam(learning_rate=0.0005)
+        self.model.compile(optimizer=optimizer, loss='mean_absolute_error', metrics=['mae'])
 
         X = self.data.drop(columns=[self.target_col])
         y = self.data[self.target_col]
 
-        if self.task_type == 'regression':
-            X = self.scaler.fit_transform(X)
+        X = self.scaler.fit_transform(X)
+
+        print(X)
+        print(y)
 
         self.epoch_data = []
 
@@ -181,10 +180,11 @@ class RegressionDL:
 
         X_train, X_test, y_train, y_test = train_test_split(
             X, y, test_size=0.2, random_state=42)
-        
+
         self.epoch_info_queue = queue.Queue()
-        custom_callback = CustomCallback(self, validation_data=(X_test, y_test), task_type=self.task_type)
-        
+        custom_callback = CustomCallback(self, validation_data=(
+            X_test, y_test), task_type=self.task_type)
+
         self.history = self.model.fit(X_train, y_train, validation_data=(
             X_test, y_test), epochs=epochs, batch_size=batch_size, callbacks=[custom_callback], verbose=0)
         self.X_test, self.y_test = X_test, y_test
@@ -249,7 +249,7 @@ class RegressionDL:
         epochs_completed = 0
         while epochs_completed < int(self.hyperparameters['epochs']):
             try:
-                epoch_info = self.epoch_info_queue.get(timeout=1) 
+                epoch_info = self.epoch_info_queue.get(timeout=1)
                 yield epoch_info
                 epochs_completed += 1
             except queue.Empty:
@@ -261,11 +261,13 @@ class RegressionDL:
         self.evaluate_model()
         self.save_model()
         model_url, scaler_url = self.upload_files_to_api()
-        
+
         _id = str(uuid.uuid4())
         df = pd.read_csv(self.dataset_url)
-        data = df.iloc[int(random.random() * len(df.values.tolist()))].tolist()[0:-1]
-        formatted_dat = [f"'{item}'" if isinstance(item, str) else str(item) for item in data]
+        data = df.iloc[int(random.random() *
+                           len(df.values.tolist()))].tolist()[0:-1]
+        formatted_dat = [f"'{item}'" if isinstance(
+            item, str) else str(item) for item in data]
 
         interference_code = f''' 
 import numpy as np
@@ -352,10 +354,9 @@ else:
             "hyperparameters": self.hyperparameters,
             "epoch_data": self.epoch_data,
             "task": self.task_type,
-            "interferenceCode": interference_code
+            "interferenceCode": interference_code,
+            "datasetUrl": self.dataset_url
         }
         os.remove(self.model_file_path)
         os.remove(self.scaler_file_path)
         yield model_obj if model_url and scaler_url else None
-
-

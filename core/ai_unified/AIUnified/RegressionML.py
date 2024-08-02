@@ -76,6 +76,7 @@ class RegressionML:
         y_pred = self.model.predict(self.X_test)
         self.mse = mean_squared_error(self.y_test, y_pred)
         print(f"MSE: {self.mse}")
+        return self.mse
         
     def save_model(self):
         model_filename = f'model{str(uuid.uuid4())}.pkl'
@@ -126,7 +127,7 @@ class RegressionML:
     def execute(self):
         self.create_model()
         self.train_model()
-        self.evaluate_model()
+        mse = self.evaluate_model()
         self.save_model()
         model_url, scaler_url = self.upload_files_to_api()
         
@@ -139,7 +140,9 @@ class RegressionML:
                 "helpers": [{"scaler": scaler_url}],
                 "modelArch": self.archType,
                 "hyperparameters": self.hyperparameters,
-                "task": self.task_type
+                "task": self.task_type,
+                "datasetUrl": self.dataset_url,
+                "epoch_data": [{"epoch": 1, "test_loss": mse}]
             }
             return model_obj
         else:

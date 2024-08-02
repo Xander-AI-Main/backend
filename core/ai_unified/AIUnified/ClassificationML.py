@@ -128,7 +128,8 @@ class ClassificationML:
                 "helpers": [{"scaler": scaler_url}],
                 "modelArch": self.architecture,
                 "hyperparameters": self.hyperparameters,
-                "task": self.task
+                "task": self.task,
+                "datasetUrl": self.dataset_url
             }
             return model_obj
         else:
