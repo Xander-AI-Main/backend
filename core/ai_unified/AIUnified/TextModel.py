@@ -21,7 +21,7 @@ from tensorflow.keras.callbacks import Callback
 
 
 class TextModel:
-    def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters):
+    def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, userId):
         self.dataset_url = dataset_url
         self.hasChanged = hasChanged
         self.task = task
@@ -32,6 +32,8 @@ class TextModel:
         self.api_url = 'https://s3-api-uat.idesign.market/api/upload'
         self.bucket_name = 'idesign-quotation'
         self.epoch_info_queue = queue.Queue()
+        self.directory_path = "models"
+        self.userId = userId
 
         self.load_data()
         self.preprocess_data()
@@ -172,9 +174,15 @@ class TextModel:
         print(f"Accuracy: {self.accuracy:.2f}")
 
     def save_model(self):
-        self.model_path = f'best_model{str(uuid.uuid4())}.h5'
-        self.tokenizer_path = f'tokenizer{str(uuid.uuid4())}.pkl'
-        self.label_encoder_path = f'label_encoder{str(uuid.uuid4())}.pkl'
+        if not os.path.exists(self.directory_path):
+            os.makedirs(self.directory_path)
+
+        self.model_path = os.path.join(
+            self.directory_path, f'best_model{str(uuid.uuid4())}.h5')
+        self.tokenizer_path = os.path.join(
+            self.directory_path, f'tokenizer{str(uuid.uuid4())}.pkl')
+        self.label_encoder_path = os.path.join(
+            self.directory_path, f'label_encoder{str(uuid.uuid4())}.pkl')
 
         self.model.save(self.model_path)
 
@@ -264,6 +272,7 @@ class TextModel:
         self.evaluate_model()
         self.save_model()
         model_url, tokenizer_url, label_encoder_url = self.upload_files_to_api()
+        _id = str(uuid.uuid4())
 
         interference_code = f'''
 import pandas as pd
@@ -345,11 +354,68 @@ else:
     print("Failed to load model, tokenizer, or label encoder.")
         '''
 
+        api_code_python = f'''
+import requests
+import json
+
+url = "https://api.xanderco.in/core/interference/" 
+
+data = {{
+    "data": "Your input text",
+    "modelId": '{_id}',
+    "userId": '{self.userId}',
+}}
+
+try:
+    response = requests.post(url, json=data)
+
+    if response.status_code == 200:
+        # Print the response JSON
+        print("Response:")
+        print(json.dumps(response.json(), indent=2))
+    else:
+        print(f"Error: {{response.status_code}}")
+        print(response.text)
+except requests.exceptions.RequestException as e:
+    print(f"An error occurred: {{e}}")
+'''
+
+        api_code_js = f'''
+const url = "https://api.xanderco.in/core/interference/";
+
+const data = {{
+    data: "Your text here",
+    modelId: '{_id}',
+    userId: '{self.userId}',
+}};
+
+const headers = {{
+    'Content-Type': 'application/json',
+}};
+
+fetch(url, {{
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify(data)
+}})
+.then(response => response.json().then(data => {{
+    if (response.ok) {{
+        console.log("Response:");
+        console.log(JSON.stringify(data, null, 2));
+    }} else {{
+        console.error(`Error: ${{response.status}}`);
+        console.error(data);
+    }}
+}}))
+.catch(error => {{
+    console.error(`An error occurred: ${{error}}`);
+}});
+'''
+
         if model_url and tokenizer_url and label_encoder_url:
-            _id = str(uuid.uuid4())
             model_obj = {
                 "modelUrl": model_url,
-                "size": os.path.getsize(self.model_path) / (1024 ** 3),
+                "size": os.path.getsize(self.model_path) / (1024 ** 3) + os.path.getsize(self.label_encoder_path) / (1024 ** 3) + os.path.getsize(self.tokenizer_path) / (1024 ** 3),
                 "id": _id,
                 "helpers": [{"tokenizer": tokenizer_url}, {"label_encoder": label_encoder_url}],
                 "modelArch": self.architecture,
@@ -357,11 +423,15 @@ else:
                 "epoch_data": self.epoch_data,
                 "task": self.task,
                 "interferenceCode": interference_code,
-                "datasetUrl": self.dataset_url
+                "datasetUrl": self.dataset_url,
+                "codes": [
+                    {"python": api_code_python},
+                    {"javascript": api_code_js}
+                ]
             }
-            os.remove(self.model_path)
-            os.remove(self.tokenizer_path)
-            os.remove(self.label_encoder_path)
+            # os.remove(self.model_path)
+            # os.remove(self.tokenizer_path)
+            # os.remove(self.label_encoder_path)
             yield model_obj
         else:
             yield None

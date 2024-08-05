@@ -9,10 +9,10 @@ from tensorflow.keras.utils import image_dataset_from_directory
 import uuid
 import queue
 import threading
-
+import shutil
 
 class ImageModelTrainer:
-    def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters):
+    def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, userId):
         self.dataset_url = dataset_url
         self.hasChanged = hasChanged
         self.task = task
@@ -28,7 +28,9 @@ class ImageModelTrainer:
         self.img_width = 120
         self.epoch_data = []
         self.model_path = f'model{str(uuid.uuid4())}.h5'
-
+        self.directory_path = "models"
+        self.complete_path = os.path.join(self.directory_path, self.model_path)
+        self.userId = userId
         self.download_and_extract_data()
         self.prepare_datasets()
         self.build_model()
@@ -87,7 +89,7 @@ class ImageModelTrainer:
             [
                 layers.Rescaling(
                     1.0 / 255, input_shape=[self.img_height, self.img_width, 3]),
-                layers.Conv2D(64, (3, 3), activation="relu"),
+                layers.Conv2D(128, (3, 3), activation="relu"),
                 layers.MaxPooling2D((2, 2)),
                 layers.Conv2D(64, (3, 3), activation="relu"),
                 layers.MaxPooling2D((2, 2)),
@@ -141,14 +143,15 @@ class ImageModelTrainer:
             callbacks=[early_stopping, custom_callback],
             verbose=0
         )
-
-        self.model.save(self.model_path)
+        if not os.path.exists(self.directory_path):
+            os.makedirs(self.directory_path)
+        self.model.save(self.complete_path)
 
     def upload_files_to_api(self):
         try:
             files = {
                 'bucketName': (None, self.bucket_name),
-                'files': open(self.model_path, 'rb')
+                'files': open(self.complete_path, 'rb')
             }
             response_model = requests.put(self.api_url, files=files)
             response_data_model = response_model.json()
@@ -243,22 +246,82 @@ if model:
 else:
     print("Failed to load model.")
         '''
+        _id = str(uuid.uuid4())
+
+        api_code_python = f''' 
+            import requests
+
+url = "https://api.xanderco.in/core/interference/"
+
+
+data = {{
+    'userId': '17',
+    'modelId': 'ff8a248b-ba2d-4164-b479-2b15510fec3b',
+}}
+
+files = {{
+    'image': open('path_to_your_image_file.jpg', 'rb')  # Replace with your image file path
+}}
+
+response = requests.post(url, headers=headers, data=data, files=files)
+
+if response.status_code == 200:
+    print("Response:")
+    print(response.json())
+else:
+    print(f"Error: {{response.status_code}}")
+    print(response.text)
+
+        '''
+
+        api_code_js = f'''
+const url = "https://api.xanderco.in/core/interference/";
+
+const data = new FormData();
+data.append('userId', '{self.userId}');
+data.append('modelId', '{_id}');
+data.append('image', document.querySelector('input[type="file"]').files[0]);  // Assuming you have a file input
+
+
+fetch(url, {{
+    method: 'POST',
+    headers: headers,
+    body: data
+}})
+.then(response => response.json().then(data => {{
+    if (response.ok) {{
+        console.log("Response:");
+        console.log(JSON.stringify(data, null, 2));
+    }} else {{
+        console.error(`Error: ${{response.status}}`);
+        console.error(data);
+    }}
+}}))
+.catch(error => {{
+    console.error(`An error occurred: ${{error}}`);
+}});
+'''
+
         if model_url:
-            _id = str(uuid.uuid4())
             model_obj = {
                 "modelUrl": model_url,
                 # size in GB
-                "size": os.path.getsize(self.model_path) / (1024 ** 3),
+                "size": os.path.getsize(self.complete_path) / (1024 ** 3),
                 "id": _id,
                 "modelArch": self.architecture,
                 "hyperparameters": self.hyperparameters,
                 "epoch_data": self.epoch_data,
                 "task": self.task,
                 "interferenceCode": interference_code,
-                "datasetUrl": self.dataset_url
+                "datasetUrl": self.dataset_url,
+                "classnames": self.class_names,
+                "codes": [
+                    {"python": api_code_python},
+                    {"javascript": api_code_js}
+                ]
             }
-            os.remove(self.model_path)
-            os.remove(self.data_dir)
+            # os.remove(self.complete_path)
+            shutil.rmtree(self.data_dir)
             yield model_obj
         else:
             yield None

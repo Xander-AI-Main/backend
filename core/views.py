@@ -12,7 +12,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from .serializers import DatasetUploadSerializer, DatasetSerializer, signupSerializer, TaskSerializer, ResultSerializer, InterferenceSerializer
 from .models import Dataset, userSignup
-import requests
+import requests   
 import json
 import pandas as pd
 from .ai_unified.AIUnified.RegressionML import RegressionML
@@ -41,9 +41,21 @@ import numpy as np
 import tensorflow as tf
 import joblib
 import requests
-import io
 import pandas as pd
-import gridfs
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+import pickle
+from tensorflow.keras.preprocessing import image
+import numpy as np
+from io import BytesIO
+from PIL import Image
+from sentence_transformers import SentenceTransformer
+import os
+import re 
+import nltk
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from sentence_transformers import util
+import torch
 
 def returnArch(data, task, mainType, archType):
     current_task = data[task]
@@ -109,16 +121,74 @@ class LoginView(APIView):
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
+def load_model_from_local(path):
+    try:
+        model = tf.keras.models.load_model(path)
+        return model
+    except Exception as e:
+        print("Error loading model from path: " + str(e))
+        return None
+
+def load_scaler_from_local(path):
+    try:
+        scaler = joblib.load(path)
+        return scaler
+    except Exception as e:
+        print("Error loading scaler from path: " + str(e))
+        return None
+
+def load_tokenizer(path):
+    try:
+        with open(path, 'rb') as f:
+            tokenizer = pickle.load(f)
+        return tokenizer
+    except Exception as e:
+        print(f"Error loading tokenizer: {e}")
+        return None
+
+def load_label_encoder(path):
+    try:
+        with open(path, 'rb') as f:
+            label_encoder = pickle.load(f)
+        return label_encoder
+    except Exception as e:
+        print(f"Error loading label encoder: {e}")
+        return None
+
+def preprocess_text(text):
+    text = text.lower()
+    text = re.sub(r'[^a-zA-Z0-9\s]', ' ', text)  
+    text = re.sub(r'\s+', ' ', text).strip()  
+    tokens = word_tokenize(text)
+    stop_words = set(stopwords.words('english'))
+    tokens = [word for word in tokens if word not in stop_words]
+    return ' '.join(tokens)
+
+def get_answer(question, model, question_embeddings, answer_embeddings, answers):
+    processed_question = preprocess_text(question)
+    question_embedding = model.encode(processed_question, convert_to_tensor=True)
+    
+    similarities = util.pytorch_cos_sim(question_embedding, question_embeddings)[0]
+    similarity, index = similarities.max(), similarities.argmax()
+    similarity_percentage = similarity.item() * 100
+    
+    if similarity_percentage > 45:
+        return answers[index], similarity_percentage
+    else: 
+        return "Sorry, I didn't understand that!", similarity_percentage
+
+def numToText(finalColumn, x):
+    arr = finalColumn.unique()
+    return arr[x]
+
 class Interference(APIView):
     def post(self, request):
         user_id = request.data.get('userId')
         model_id = request.data.get('modelId')
-        modelPath = request.data.get("modelPath")
-        scalerPath = request.data.get("scalerPath")
-        tokenizerPath = request.data.get("tokenizerPath")
-        labelEncoderPath = request.data.get("labelEncoderPath")
-        questionEmbeddingPath = request.data.get("questionEmbeddingPath")
-        answerEmbeddingPath = request.data.get("answerEmbeddingPath")
+        input_data = request.data.get('data')  
+        image_file = request.FILES.get('image')
+        image_url = request.data.get('imageUrl')
 
         user = get_object_or_404(userSignup, id=user_id)
         
@@ -127,19 +197,231 @@ class Interference(APIView):
         
         current_model = next((model for model in data["trained_model_url"] if model["id"] == model_id), None)
         task = current_model["task"]
-        datasetUrl = task["datasetUrl"]
+        datasetUrl = current_model["datasetUrl"]
+        modelUrl = current_model["modelUrl"]
+        predictions = None
 
-        if not modelPath:
-            return Response({"error": "Model path is pequired"}, status=status.HTTP_400_BAD_REQUEST)
-        
         if task == "regression":
-            df = pd.read_csv(self.dataset_url)
-            data = df.iloc[int(random.random() *
-                            len(df.values.tolist()))].tolist()[0:-1]
-            formatted_dat = [f"'{item}'" if isinstance(
-                item, str) else str(item) for item in data]
+            helpers = current_model["helpers"]
+            scalerUrl = helpers[0]["scaler"]
+            
+            model_name = modelUrl.split('/')[-1]
+            scaler_name = scalerUrl.split('/')[-1]
 
+            model_path = os.path.join("models", model_name)
+            scaler_path = os.path.join("models", scaler_name)  
+
+            model = load_model_from_local(model_path)
+            scaler = load_scaler_from_local(scaler_path)
+
+            if model and scaler:
+                def preprocess_input(data, scaler, categorical_columns, column_names):
+                    df = pd.DataFrame([data], columns=column_names)
+                    df = pd.get_dummies(df, columns=categorical_columns)
+                    df = df.reindex(columns=scaler.feature_names_in_, fill_value=0)
+                    data_scaled = scaler.transform(df)
+                    return data_scaled
+
+                def make_predictions(model, data_scaled):
+                    predictions = model.predict(data_scaled)
+                    return predictions
+
+                df = pd.read_csv(datasetUrl)
+                column_names = df.columns.drop(df.columns[-1])
+                categorical_columns = df.select_dtypes(include=['object']).columns
+
+                data_scaled = preprocess_input(input_data, scaler, categorical_columns, column_names)
+                predictions = make_predictions(model, data_scaled)
+
+                print(predictions)
+                return Response({"prediction": predictions.tolist()}, status=status.HTTP_200_OK)
+            else:
+                return Response({"error": "Failed to load model or scaler"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+        elif task == "classification":
+            helpers = current_model["helpers"]
+            scalerUrl = helpers[0]["scaler"]
+            
+            model_name = modelUrl.split('/')[-1]
+            scaler_name = scalerUrl.split('/')[-1]
+
+            model_path = os.path.join("models", model_name)
+            scaler_path = os.path.join("models", scaler_name)  
+
+            model = load_model_from_local(model_path)
+            scaler = load_scaler_from_local(scaler_path)
+
+            def preprocess_input(data, scaler, categorical_columns, column_names):
+                df = pd.DataFrame([data], columns=column_names)
+                df = pd.get_dummies(df, columns=categorical_columns, drop_first=True)
+                df = df.reindex(columns=scaler.feature_names_in_, fill_value=0)
+                data_scaled = scaler.transform(df)
+                return data_scaled
+
+            def make_predictions(model, data_scaled):
+                predictions_proba = model.predict(data_scaled)
+                if predictions_proba.shape[1] == 1:  # Binary classification
+                    predictions = (predictions_proba > 0.5).astype(int)
+                else:  # Multi-class classification
+                    predictions = np.argmax(predictions_proba, axis=1)
+                return predictions, predictions_proba
+
+            if model and scaler:
+                df = pd.read_csv(datasetUrl)
+                column_names = df.columns.drop(df.columns[-1]).tolist()
+                categorical_columns = df.select_dtypes(include=['object']).columns.tolist()
+                y = df.iloc[:, -1]
+
+                data_scaled = preprocess_input(input_data, scaler, categorical_columns, column_names)
+
+                predictions, predictions_proba = make_predictions(model, data_scaled)
+
+                if predictions_proba.shape[1] == 1:  # Binary classification
+                    pred = None
+                    if y.dtype == object:
+                        pred = numToText(y, predictions[0][0])
+                    else:
+                        pred = int(predictions[0][0])
+                    return Response({"prediction": [{"predicted_class": pred}, {"probability": float(predictions_proba[0][0])}]}, status=status.HTTP_200_OK)
+                else:  # Multi-class classification
+                    if y.dtype == object:
+                        pred = numToText(y, predictions[0])
+                    else:
+                        pred = int(predictions[0])
+                    return Response({"prediction": [{"predicted_class": pred}, {"probabilities": predictions_proba[0].tolist()}]}, status=status.HTTP_200_OK)
+            else:
+                return Response({"error": "Failed to load model or scaler"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        elif task == "text":
+            helpers = current_model["helpers"]
+            tokenizer = helpers[0]["tokenizer"]
+            label_encoder = helpers[1]["label_encoder"]
+            
+            model_name = modelUrl.split('/')[-1]
+            tokenizer_name = tokenizer.split('/')[-1]
+            label_encoder_name = label_encoder.split('/')[-1]
+
+            model_path = os.path.join("models", model_name)
+            tokenizer_path = os.path.join("models", tokenizer_name)  
+            label_encoder_path = os.path.join("models", label_encoder_name)  
+
+            model = load_model_from_local(model_path)
+
+            def preprocess_text(text, tokenizer, max_sequence_length):
+                sequences = tokenizer.texts_to_sequences([text])
+                padded_sequences = pad_sequences(sequences, maxlen=max_sequence_length)
+                return padded_sequences
+
+            def make_predictions(text, model, tokenizer, label_encoder, max_sequence_length):
+                preprocessed_text = preprocess_text(text, tokenizer, max_sequence_length)
+                predictions = model.predict(preprocessed_text)
+                predicted_class = np.argmax(predictions, axis=1)
+                predicted_label = label_encoder.inverse_transform(predicted_class)
+                return predicted_label[0], predictions[0]
+
+            # Load model, tokenizer, and label encoder
+            model = load_model_from_local(model_path)
+            tokenizer = load_tokenizer(tokenizer_path)
+            label_encoder = load_label_encoder(label_encoder_path)
+
+            if model and tokenizer and label_encoder:
+                max_sequence_length = 100  
+                predicted_label, prediction_proba = make_predictions(input_data, model, tokenizer, label_encoder, max_sequence_length)
+                print(f"Predicted label: {predicted_label}")
+                print(f"Prediction probabilities: {prediction_proba}")
+
+                return Response({"prediction": [{"predicted_class": predicted_label}, {"probabilities": prediction_proba}]}, status=status.HTTP_200_OK)
         
+        elif task == "image":
+            model_name = modelUrl.split('/')[-1]
+            model_path = os.path.join("models", model_name)
+            classNames = current_model["classnames"]
+            model = load_model_from_local(model_path)
+
+            if not image_file and not image_url:
+                return Response({"error": "Please provide either an image file or an image URL"}, status=status.HTTP_400_BAD_REQUEST)
+
+            model = load_model_from_local(model_path)
+
+            def prepare_image(img, img_height=120, img_width=120):
+                img = img.resize((img_width, img_height))
+                img_array = image.img_to_array(img)
+                img_array = np.expand_dims(img_array, 0)  # Create batch axis
+                img_array /= 255.0  # Normalize image
+                return img_array
+
+            def make_predictions(img_array, model):
+                predictions = model.predict(img_array)
+                class_idx = np.argmax(predictions, axis=1)[0]
+                class_prob = predictions[0][class_idx]
+                return class_idx, class_prob
+            
+            try:
+                if image_file:
+                    img = Image.open(image_file)
+                elif image_url:
+                    response = requests.get(image_url)
+                    img = Image.open(BytesIO(response.content))
+                else:
+                    return Response({"error": "No image provided"}, status=status.HTTP_400_BAD_REQUEST)
+
+                img_array = prepare_image(img)
+                class_idx, class_prob = make_predictions(img_array, model)
+
+                return Response({
+                    "predictedClassIndex": classNames[int(class_idx)],
+                    "classProbability": float(class_prob)
+                }, status=status.HTTP_200_OK)
+
+            except Exception as e:
+                return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        elif task == "chatbot":
+            model_path = os.path.join("models", "sentence_transformer_model")
+            helpers = current_model["helpers"]
+            question_embeddings = helpers[0]["question_embeddings"]
+            answer_embeddings = helpers[1]["answer_embeddings"]
+            
+            question_embeddings_name = question_embeddings.split('/')[-1]
+            answer_embeddings_name = answer_embeddings.split('/')[-1]
+
+            question_embeddings_path = os.path.join("models", question_embeddings_name)  
+            answer_embeddings_path = os.path.join("models", answer_embeddings_name)  
+
+            model_path = os.path.join("models", "sentence_transformer_model")
+            try:
+                model = SentenceTransformer(model_path)
+                question_embeddings = torch.load(question_embeddings_path)
+                answer_embeddings = torch.load(answer_embeddings_path)
+            except Exception as e:
+                return Response({"error": f"Failed to load model or embeddings: {str(e)}"}, 
+                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            data_url = datasetUrl
+            try:
+                response = requests.get(data_url)
+                qa_data = json.loads(response.text)
+                questions = [item['question'] for item in qa_data]
+                answers = [item['answer'] for item in qa_data]
+            except Exception as e:
+                return Response({"error": f"Failed to load QA data: {str(e)}"}, 
+                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            if not input_data:
+                return Response({"error": "Please provide a question"}, 
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                answer, similarity_percentage = get_answer(input_data, model, question_embeddings, answer_embeddings, answers)
+                return Response({
+                    "answer": answer,
+                    "similarityPercentage": round(similarity_percentage, 2)
+                }, status=status.HTTP_200_OK)
+            except Exception as e:
+                return Response({"error": f"Error processing question: {str(e)}"}, 
+                                status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response({"error": "Unknown error occurred"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UserUpdateView(APIView):
     def put(self, request):
@@ -321,8 +603,6 @@ class DatasetUploadView(APIView):
                     architecture_details = 'Classification model architecture'
                     architecture, hyperparameters = returnArch(
                         arch_data, task_type, "DL", "default")
-                    
-
 
         return task_type, hyperparameters, architecture
 
@@ -379,7 +659,7 @@ class TrainModelView(APIView):
                     architecture = returnArch(
                         arch_data, task, mainType, archType)
                     model_trainer = RegressionDL(
-                        dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
+                        dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, userId)
                     executor = model_trainer.execute()
 
                     for epoch_info in executor:
@@ -421,7 +701,7 @@ class TrainModelView(APIView):
                 hyperparameters = data['arch_data'].get('hyperparameters', {})
                 if mainType == "DL":
                     model_trainer = RegressionDL(
-                        dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
+                        dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, userId)
                     model_obj = model_trainer.execute()
                     for epoch_info in executor:
                         if isinstance(epoch_info, dict) and 'epoch' in epoch_info:
@@ -456,7 +736,7 @@ class TrainModelView(APIView):
                     architecture = returnArch(
                         arch_data, task, mainType, archType)
                     model_trainer = ClassificationDL(
-                        dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
+                        dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, userId)
                     executor = model_trainer.execute()
                     for epoch_info in executor:
                         if isinstance(epoch_info, dict) and 'epoch' in epoch_info:
@@ -489,7 +769,7 @@ class TrainModelView(APIView):
             elif task == "classification" and hasChanged:
                 if mainType == "DL":
                     model_trainer = ClassificationDL(
-                        dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
+                        dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, userId)
                     executor = model_trainer.execute()
 
                     for epoch_info in executor:
@@ -526,7 +806,7 @@ class TrainModelView(APIView):
                     arch_data, task, mainType, archType)
 
                 trainer = ImageModelTrainer(
-                    dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
+                    dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, userId)
                 executor = trainer.execute()
                 for epoch_info in executor:
                         if isinstance(epoch_info, dict) and 'epoch' in epoch_info:
@@ -566,7 +846,8 @@ class TrainModelView(APIView):
                     mainType=mainType,
                     archType=archType,
                     architecture=architecture,
-                    hyperparameters=hyperparameters
+                    hyperparameters=hyperparameters,
+                    userId=userId
                 )
                 executor = model.execute()
 
@@ -603,7 +884,8 @@ class TrainModelView(APIView):
                     mainType=mainType,
                     archType=archType,
                     architecture=architecture,
-                    hyperparameters=hyperparameters
+                    hyperparameters=hyperparameters,
+                    userId=userId
                 )
 
                 model_obj = model.execute()

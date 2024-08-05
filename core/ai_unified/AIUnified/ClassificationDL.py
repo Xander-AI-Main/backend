@@ -15,7 +15,7 @@ import random
 import numpy as np
 
 class ClassificationDL:
-    def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters):
+    def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, userId):
         self.dataset_url = dataset_url
         self.hasChanged = hasChanged
         self.task = task
@@ -27,6 +27,10 @@ class ClassificationDL:
         self.bucket_name = 'idesign-quotation'
         self.model_path = f'model{str(uuid.uuid4())}.h5'
         self.scaler_path = f'scaler{str(uuid.uuid4())}.pkl'
+        self.directory_path = "models"
+        self.complete_model_path = os.path.join(self.directory_path, self.model_path)
+        self.complete_scaler_path = os.path.join(self.directory_path, self.scaler_path)
+        self.userId = userId
 
         self.load_data()
         self.preprocess_data()
@@ -137,14 +141,23 @@ class ClassificationDL:
         # print(f"Accuracy: {self.accuracy}")
 
     def save_model(self):
-        self.model.save(self.model_path)
-        joblib.dump(self.scaler, self.scaler_path)
+        if not os.path.exists(self.directory_path):
+            os.makedirs(self.directory_path)
+            model_path = os.path.join(self.directory_path, self.model_path)
+            scaler_path = os.path.join(self.directory_path, self.scaler_path)
+            self.model.save(model_path)
+            joblib.dump(self.scaler, scaler_path)
+        else:
+            model_path = os.path.join(self.directory_path, self.model_path)
+            scaler_path = os.path.join(self.directory_path, self.scaler_path)
+            self.model.save(model_path)
+            joblib.dump(self.scaler, scaler_path)
 
     def upload_files_to_api(self):
         try:
             files = {
                 'bucketName': (None, self.bucket_name),
-                'files': open(self.model_path, 'rb')
+                'files': open(self.complete_model_path, 'rb')
             }
             response_model = requests.put(self.api_url, files=files)
             response_data_model = response_model.json()
@@ -160,7 +173,7 @@ class ClassificationDL:
 
             files = {
                 'bucketName': (None, self.bucket_name),
-                'files': open(self.scaler_path, 'rb')
+                'files': open(self.complete_scaler_path, 'rb')
             }
             response_scaler = requests.put(self.api_url, files=files)
             response_data_scaler = response_scaler.json()
@@ -288,11 +301,68 @@ if __name__ == "__main__":
     else:
         print("Failed to load model or scaler.")
         '''
+        
+        api_code_python = f'''
+        import requests
+import json
 
+url = "https://api.xanderco.in/core/interference/" 
+
+data = {{
+    "data": {formatted_dat},
+    "modelId": '{_id}',
+    "userId": '{self.userId}',
+}}
+
+try:
+    response = requests.post(url, json=data)
+
+    if response.status_code == 200:
+        # Print the response JSON
+        print("Response:")
+        print(json.dumps(response.json(), indent=2))
+    else:
+        print(f"Error: {{response.status_code}}")
+        print(response.text)
+except requests.exceptions.RequestException as e:
+    print(f"An error occurred: {{e}}")
+'''
+        
+        api_code_js = f'''
+const url = "https://api.xanderco.in/core/interference/";
+
+const data = {{
+    data: {formatted_dat},
+    modelId: '{_id}',
+    userId: '{self.userId}',
+}};
+
+const headers = {{
+    'Content-Type': 'application/json',
+}};
+
+fetch(url, {{
+    method: 'POST',
+    headers: headers,
+    body: JSON.stringify(data)
+}})
+.then(response => response.json().then(data => {{
+    if (response.ok) {{
+        console.log("Response:");
+        console.log(JSON.stringify(data, null, 2));
+    }} else {{
+        console.error(`Error: ${{response.status}}`);
+        console.error(data);
+    }}
+}}))
+.catch(error => {{
+    console.error(`An error occurred: ${{error}}`);
+}});
+'''
 
         model_obj = {
             "modelUrl": model_url if model_url and scaler_url else "",
-            "size": os.path.getsize(self.model_path) / (1024 ** 3) if model_url and scaler_url else 0,
+            "size": os.path.getsize(self.complete_model_path) / (1024 ** 3) if model_url and scaler_url else 0,
             "id": _id if model_url and scaler_url else "",
             "helpers": [{"scaler": scaler_url}] if model_url and scaler_url else [],
             "modelArch": self.architecture,
@@ -300,8 +370,12 @@ if __name__ == "__main__":
             "epoch_data": self.epoch_data,
             "task": self.task,
             "interferenceCode": interference_code,
-            "datasetUrl": self.dataset_url
+            "datasetUrl": self.dataset_url,
+            "codes": [
+                {"python": api_code_python},
+                {"javascript": api_code_js}
+            ]
         }
-        os.remove(self.model_path)
-        os.remove(self.scaler_path)
+        # os.remove(self.model_path)
+        # os.remove(self.scaler_path)
         yield model_obj if model_url and scaler_url else None
