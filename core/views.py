@@ -1,4 +1,5 @@
 import os
+from asgiref.sync import sync_to_async
 import zipfile
 import pandas as pd
 import json
@@ -36,7 +37,8 @@ import threading
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import socketio
-
+from datetime import datetime, timedelta
+from rest_framework.exceptions import ValidationError, NotFound, PermissionDenied
 
 def returnArch(data, task, mainType, archType):
     current_task = data[task]
@@ -76,7 +78,13 @@ class DatasetUploadView(APIView):
             user = get_object_or_404(userSignup, id=userId)
             currUsage = float(user.s3_storage_used)
             user.s3_storage_used = currUsage + file_size_gb
+            if user.s3_storage_used >= user.max_storage_allowed:
+                raise PermissionDenied("Storage limit reached")
             user.save()
+            current_date = datetime.now().date()
+            if userSignup.purchase_date + timedelta(days=30) <= current_date:
+                userSignup.has_expired = True
+                userSignup.save()
 
             # s3_storage, created = S3StorageUsage.objects.get_or_create(id=1)
             # s3_storage.used_gb += file_size_gb
@@ -260,6 +268,19 @@ class UserUpdateView(APIView):
             return Response({"error": "userId is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         user = get_object_or_404(userSignup, id=userId)
+        current_date = datetime.now().date()
+        if userSignup.purchase_date + timedelta(days=30) <= current_date:
+            userSignup.has_expired = True
+            userSignup.save()
+        
+        if user.cpu_hours_used >= user.max_cpu_hours_allowed:
+            raise PermissionDenied("CPU hours limit reached")
+
+        if user.gpu_hours_used >= user.max_gpu_hours_allowed:
+            raise PermissionDenied("GPU hours limit reached")
+        
+        if user.s3_storage_used >= user.max_storage_allowed:
+            raise PermissionDenied("Storage limit reached")
         serializer = signupSerializer(user)
         return Response(serializer.data)
 
@@ -288,7 +309,7 @@ sio = socketio.Client()
 
 
 class TrainModelView(APIView):
-    def post(self, request):
+    async def post(self, request):
         serializer = TaskSerializer(data=request.data)
         if serializer.is_valid():
             data = serializer.validated_data
@@ -299,9 +320,13 @@ class TrainModelView(APIView):
             archType = data['archType']
             userId = data['userId']
             architecture = {}  # extract from arch.json
-            hyperparameters = data['hyperparameters']
+            hyperparameters = data["hyperparameters"]
 
-            user = get_object_or_404(userSignup, id=userId)
+            user = get_object_or_404 (userSignup, id=userId)
+            current_date = datetime.now().date()
+            if userSignup.purchase_date + timedelta(days=30) <= current_date:
+                userSignup.has_expired = True
+                userSignup.save()
             plan = user.plan
 
             if type(user.trained_model_url) == str:
@@ -570,3 +595,4 @@ class TrainModelView(APIView):
             result_serializer = ResultSerializer({'model_obj': model_obj})
             return Response(result_serializer.data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
