@@ -50,7 +50,7 @@ class signupSerializer(CountryFieldMixin, serializers.ModelSerializer):
                   'currency', 'workin_in_team', 's3_storage_used', 'cpu_hours_used', 
                   'gpu_hours_used', 'dataset_url', 'trained_model_url', 'plan', 
                   'max_storage_allowed', 'max_cpu_hours_allowed', 'max_gpu_hours_allowed', 
-                  'team')
+                  'team', 'photo')
         extra_kwargs = {
             'password': {'write_only': True},
         }
@@ -80,7 +80,7 @@ class UserUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = userSignup
         exclude = ['password', 'username', 'email']  
-        read_only_fields = ['id', 's3_storage_used', 'cpu_hours_used', 'gpu_hours_used']  
+        read_only_fields = ['id']  
 
     def update(self, instance, validated_data):
         validated_data.pop('userId', None)  
@@ -107,8 +107,14 @@ class TaskSerializer(serializers.Serializer):
     userId = serializers.CharField()
     arch_data = serializers.JSONField(required=False)
     hyperparameters = serializers.JSONField(required=False)
+        
+class InterferenceSerializer(serializers.Serializer):
+    userId = serializers.CharField()
+    modelId = serializers.CharField()
+    
 
 class ResultSerializer(serializers.Serializer):
-    model_obj = serializers.JSONField()
-        
+    data = serializers.JSONField()
 
+    def to_representation(self, instance):
+        return instance

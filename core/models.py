@@ -16,6 +16,7 @@ class userSignup (AbstractUser):
     dataset_url=models.JSONField(default=list)
     trained_model_url=models.JSONField(default=list)
     plan=models.TextField(default='', blank=True, null=False)
+    photo=models.TextField(default='', blank=True, null=False)
     max_storage_allowed=models.BigIntegerField(default=0,blank=False, null=False)
     max_cpu_hours_allowed=models.IntegerField(default=0,blank=False, null=False) 
     max_gpu_hours_allowed=models.IntegerField(default=0,blank=False, null=False) 
