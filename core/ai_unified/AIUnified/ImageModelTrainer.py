@@ -11,6 +11,7 @@ import queue
 import threading
 import shutil
 
+
 class ImageModelTrainer:
     def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, userId):
         self.dataset_url = dataset_url
@@ -96,7 +97,15 @@ class ImageModelTrainer:
                 layers.Conv2D(32, (3, 3), activation="relu"),
                 layers.MaxPooling2D((2, 2)),
                 layers.Flatten(),
+                layers.Dense(1024, activation="relu"),
+                layers.Dropout(0.35),
+                layers.Dense(512, activation="relu"),
+                layers.Dropout(0.35),
+                layers.Dense(256, activation="relu"),
+                layers.Dropout(0.35),
                 layers.Dense(128, activation="relu"),
+                layers.Dropout(0.35),
+                layers.Dense(64, activation="relu"),
                 layers.Dense(self.num_classes),
             ]
         )
@@ -249,14 +258,14 @@ else:
         _id = str(uuid.uuid4())
 
         api_code_python = f''' 
-            import requests
+import requests
 
 url = "https://api.xanderco.in/core/interference/"
 
 
 data = {{
-    'userId': '17',
-    'modelId': 'ff8a248b-ba2d-4164-b479-2b15510fec3b',
+    'userId': '{self.userId}',
+    'modelId': '{_id}',
 }}
 
 files = {{

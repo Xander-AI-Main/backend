@@ -364,7 +364,7 @@ import json
 url = "https://api.xanderco.in/core/interference/" 
 
 data = {{
-    "data": {formatted_dat},
+    "data": [{', '.join(formatted_dat)}],
     "modelId": '{_id}',
     "userId": '{self.userId}',
 }}
@@ -387,7 +387,7 @@ except requests.exceptions.RequestException as e:
 const url = "https://api.xanderco.in/core/interference/";
 
 const data = {{
-    data: {formatted_dat},
+    data: [{', '.join(formatted_dat)}],
     modelId: '{_id}',
     userId: '{self.userId}',
 }};
