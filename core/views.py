@@ -30,6 +30,8 @@ from .serializers import signupSerializer, LoginSerializer, UserUpdateSerializer
 from rest_framework.authtoken.models import Token
 from django.shortcuts import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
+from datetime import datetime, timedelta
+from rest_framework.exceptions import ValidationError, NotFound, PermissionDenied
 import time
 import socket
 import threading
@@ -75,6 +77,14 @@ class DatasetUploadView(APIView):
             user = get_object_or_404(userSignup, id=userId)
             currUsage = float(user.s3_storage_used)
             user.s3_storage_used = currUsage + file_size_gb
+            if user.s3_storage_used >= user.max_storage_allowed:
+                raise PermissionDenied("Storage limit reached")
+            
+            current_date = datetime.now().date()
+            if userSignup.purchase_date + timedelta(days=30) <= current_date:
+                userSignup.has_expired = True
+                userSignup.save()
+
             user.save()
 
             # s3_storage, created = S3StorageUsage.objects.get_or_create(id=1)
@@ -597,6 +607,8 @@ class SocketClient:
 
 
 sio = socketio.Client()
+
+
 def isText (df, columns):
     text = True
     for column in columns:
@@ -614,148 +626,6 @@ def textToNum(finalColumn, x):
         return index
     else:
         return -1  
-
-class DatasetUploadView(APIView):
-    serializer_class = DatasetUploadSerializer
-
-    def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data)
-        if serializer.is_valid():
-            uploaded_file = serializer.validated_data['file']
-            print(uploaded_file.name)
-            name = uploaded_file.name.split('.')[0] + str(uuid.uuid4()) + '.' + uploaded_file.name.split('.')[1]
-            userId = serializer.validated_data['userId']
-            file_path = default_storage.save(name, uploaded_file)
-
-            file_size_bytes = uploaded_file.size
-            file_size_gb = file_size_bytes / (1024 ** 3)
-
-            user = get_object_or_404(userSignup, id=userId)
-            currUsage = float(user.s3_storage_used)
-            user.s3_storage_used = currUsage + file_size_gb
-            user.save()
-
-            # s3_storage, created = S3StorageUsage.objects.get_or_create(id=1)
-            # s3_storage.used_gb += file_size_gb
-            # s3_storage.save()
-            print(file_path)
-            task_type, hyperparameter, architecture_details = self.determine_task(
-                file_path)
-
-            dataset = Dataset.objects.create(
-                name=uploaded_file.name,
-                size_gb=file_size_gb,
-                task_type=task_type,
-                architecture_details=architecture_details,
-                hyperparameter=hyperparameter
-            )
-
-            api_url = 'https://s3-api-uat.idesign.market/api/upload'
-            bucket_name = 'idesign-quotation'
-
-            cloud_url = self.upload_to_s3(api_url, bucket_name, file_path)
-
-            response_data = {
-                'task_type': task_type,
-                'architecture_details': architecture_details,
-                'cloud_url': cloud_url,
-                'hyperparameter': hyperparameter
-            }
-            if type(user.dataset_url) == str:
-                datasets = json.loads(user.dataset_url)
-            else:
-                datasets = user.dataset_url
-            print(datasets)
-            datasets.append(response_data)
-            user.dataset_url = datasets
-            user.save()
-
-            os.remove(file_path)
-            return Response(response_data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def determine_task(self, file_path):
-        file_type = mimetypes.guess_type(file_path)[0]
-        task_type = ''
-        architecture_details = ''
-        architecture = []
-        hyperparameters = {}
-
-        if file_type == 'application/zip' or file_type == "application/x-zip-compressed":
-            with zipfile.ZipFile(file_path, 'r') as zip_ref:
-                file_list = zip_ref.namelist()
-                if any(file.endswith('.mp3') for file in file_list):
-                    task_type = 'audio'
-                    architecture_details = 'Audio processing architecture'
-                    architecture, hyperparameters = returnArch(
-                        arch_data, task_type, "DL", "default")
-                elif any(file.endswith(('.jpg', '.jpeg', '.png')) for file in file_list):
-                    task_type = 'image'
-                    architecture_details = 'Image processing architecture'
-                    architecture, hyperparameters = returnArch(
-                        arch_data, task_type, "DL", "default")
-                else:
-                    raise ValueError("No supported file types found in ZIP")
-
-        elif file_type == 'application/json':
-            task_type = 'chatbot'
-            architecture_details = 'Chatbot architecture'
-            architecture, hyperparameters = returnArch(
-                arch_data, task_type, "DL", "default")
-
-        else:
-            df = pd.read_csv(file_path)
-            num_columns = df.select_dtypes(include=[np.number]).shape[1]
-            all_columns = list(df.columns)
-            print(all_columns[-1])
-            final_column = df.iloc[:, -1]
-
-            print(final_column.dtype)
-
-            if isText(df, all_columns) == True and df.apply(lambda col: col.str.len().mean() > 10).any():
-                task_type = 'text'
-                architecture_details = 'NLP architecture'
-                architecture, hyperparameters = returnArch(
-                    arch_data, task_type, "topic classification", "default")
-            else:
-                df[all_columns[-1]] = df[all_columns[-1]].apply(lambda x: textToNum(final_column, x))
-                final_column = df.iloc[:, -1]
-                unique_values = final_column.unique()
-                if len(unique_values) / len(final_column) > 0.1:
-                    task_type = 'regression'
-                    architecture_details = 'Regression model architecture'
-                    architecture, hyperparameters = returnArch(
-                        arch_data, task_type, "DL", "default")
-                else:
-                    task_type = 'classification'
-                    architecture_details = 'Classification model architecture'
-                    architecture, hyperparameters = returnArch(
-                        arch_data, task_type, "DL", "default")
-
-        return task_type, hyperparameters, architecture
-
-    def upload_to_s3(self, endpoint, bucket_name, file_path):
-        files = {
-            'bucketName': (None, bucket_name),
-            'files': open(file_path, 'rb')
-        }
-        try:
-            print(1)
-            response = requests.put(endpoint, files=files)
-            response_data = response.json()
-            print(2)
-            if response.status_code == 200:
-                pdf_info = response_data.get('locations', [])[0]
-                initial_url = pdf_info
-                print(f"File uploaded successfully. URL: {initial_url}")
-                return initial_url
-            else:
-                print(
-                    f"Failed to upload file. Error: {response_data.get('error')}")
-                return None
-        except requests.exceptions.RequestException as e:
-            print(f"An error occurred: {str(e)}")
-            return None
 
 class TrainModelView(APIView):
     async def post(self, request):
