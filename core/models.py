@@ -4,6 +4,10 @@ from django_countries.fields import CountryField
 import pycountry
 from decimal import Decimal
 import json
+from datetime import datetime, timedelta
+
+current_date = datetime.now()
+future_date = current_date + timedelta(days=30)
 
 class userSignup (AbstractUser):
     phone_number = models.CharField(max_length=15, blank=True, null=False)
@@ -21,6 +25,9 @@ class userSignup (AbstractUser):
     max_cpu_hours_allowed=models.IntegerField(default=0,blank=False, null=False) 
     max_gpu_hours_allowed=models.IntegerField(default=0,blank=False, null=False) 
     team=models.JSONField(default=list)
+    purchase_date=models.DateTimeField(auto_now_add=True,)
+    expired_date=models.DateTimeField(default=future_date)
+    has_expired=models.BooleanField(default=False)
     
     def save(self, *args, **kwargs):
         if self.country:

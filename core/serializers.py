@@ -50,7 +50,7 @@ class signupSerializer(CountryFieldMixin, serializers.ModelSerializer):
                   'currency', 'workin_in_team', 's3_storage_used', 'cpu_hours_used', 
                   'gpu_hours_used', 'dataset_url', 'trained_model_url', 'plan', 
                   'max_storage_allowed', 'max_cpu_hours_allowed', 'max_gpu_hours_allowed', 
-                  'team', 'photo')
+                  'team', 'photo', 'purchase_date', 'expired_date', 'has_expired')
         extra_kwargs = {
             'password': {'write_only': True},
         }
