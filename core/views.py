@@ -56,6 +56,7 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from sentence_transformers import util
 import torch
+import chardet
 
 def returnArch(data, task, mainType, archType):
     current_task = data[task]
@@ -269,7 +270,7 @@ class Interference(APIView):
             if model and scaler:
                 df = pd.read_csv(datasetUrl)
                 column_names = df.columns.drop(df.columns[-1]).tolist()
-                categorical_columns = df.select_dtypes(include=['object']).columns.tolist()
+                categorical_columns = categorical_columns = df.drop(columns=df.columns[-1]).select_dtypes(include=['object']).columns.tolist()
                 y = df.iloc[:, -1]
 
                 data_scaled = preprocess_input(input_data, scaler, categorical_columns, column_names)
@@ -469,15 +470,19 @@ class SocketClient:
 
 
 sio = socketio.Client()
-def isText (df, columns):
-    text = True
+def isText(df, columns):
+    text = []
     for column in columns:
         if df[column].dtype == object:
-            text = True
-        else: 
-            text = False
-    return text
-
+            text.append(True)
+        else:
+            text.append(False)
+    
+    if all(text):
+        return True
+    else:
+        return False
+    
 def textToNum(finalColumn, x):
     arr = finalColumn.unique()
     indices = np.where(arr == x)[0]
@@ -494,7 +499,6 @@ class DatasetUploadView(APIView):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             uploaded_file = serializer.validated_data['file']
-            print(uploaded_file.name)
             name = uploaded_file.name.split('.')[0] + str(uuid.uuid4()) + '.' + uploaded_file.name.split('.')[1]
             userId = serializer.validated_data['userId']
             file_path = default_storage.save(name, uploaded_file)
@@ -537,7 +541,6 @@ class DatasetUploadView(APIView):
                 datasets = json.loads(user.dataset_url)
             else:
                 datasets = user.dataset_url
-            print(datasets)
             datasets.append(response_data)
             user.dataset_url = datasets
             user.save()
@@ -583,8 +586,9 @@ class DatasetUploadView(APIView):
             final_column = df.iloc[:, -1]
 
             print(final_column.dtype)
-
+            print(isText(df, all_columns))
             if isText(df, all_columns) == True and df.apply(lambda col: col.str.len().mean() > 10).any():
+                print("Going in")
                 task_type = 'text'
                 architecture_details = 'NLP architecture'
                 architecture, hyperparameters = returnArch(

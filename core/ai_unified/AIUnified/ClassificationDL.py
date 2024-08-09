@@ -72,7 +72,7 @@ class ClassificationDL:
         num_classes = len(unique_values)
 
         self.model = tf.keras.Sequential()
-
+        print(self.X_train.shape[1])
         if self.task == "classification" and self.hasChanged:
             for arch in self.architecture:
                 if arch['layer'] == "Dense" and arch['define_input_shape'] == "true":
@@ -286,7 +286,7 @@ if __name__ == "__main__":
     if model and scaler:
         df = pd.read_csv(dataset_url)
         column_names = df.columns.drop(df.columns[-1]).tolist()
-        categorical_columns = df.select_dtypes(include=['object']).columns.tolist()
+        categorical_columns = df.drop(columns=df.columns[-1]).select_dtypes(include=['object']).columns.tolist()
 
         data_scaled = preprocess_input(input_data, scaler, categorical_columns, column_names)
 
