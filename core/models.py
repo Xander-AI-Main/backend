@@ -5,6 +5,7 @@ import pycountry
 from decimal import Decimal
 import json
 from datetime import datetime, timedelta
+from django.utils import timezone
 
 current_date = datetime.now()
 future_date = current_date + timedelta(days=30)
@@ -25,10 +26,11 @@ class userSignup (AbstractUser):
     max_cpu_hours_allowed=models.IntegerField(default=0,blank=False, null=False) 
     max_gpu_hours_allowed=models.IntegerField(default=0,blank=False, null=False) 
     team=models.JSONField(default=list)
-    purchase_date=models.DateTimeField(auto_now_add=True,)
-    expired_date=models.DateTimeField(default=future_date)
-    has_expired=models.BooleanField(default=False)
-    
+    dummy=models.BooleanField(default=False)
+    purchase_date = models.DateTimeField(default=timezone.now)
+    expired_date = models.DateTimeField(default=lambda: timezone.now() + timezone.timedelta(days=30))
+    has_expired = models.BooleanField(default=False)
+
     def save(self, *args, **kwargs):
         if self.country:
             country = pycountry.countries.get(alpha_2=self.country.code)

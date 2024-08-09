@@ -60,6 +60,7 @@ from nltk.tokenize import word_tokenize
 from sentence_transformers import util
 import torch
 import chardet
+from django.utils import timezone
 
 def returnArch(data, task, mainType, archType):
     current_task = data[task]
@@ -102,9 +103,9 @@ class DatasetUploadView(APIView):
                 raise PermissionDenied("Storage limit reached")
             
             current_date = datetime.now().date()
-            if userSignup.purchase_date + timedelta(days=30) <= current_date:
-                userSignup.has_expired = True
-                userSignup.save()
+            # if userSignup.purchase_date + timedelta(days=30) <= current_date:
+            #     userSignup.has_expired = True
+            #     userSignup.save()
 
             user.save()
 
@@ -590,14 +591,14 @@ class UserUpdateView(APIView):
             return Response({"error": "userId is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         user = get_object_or_404(userSignup, id=userId)
-        current_date = datetime.now().date()
-        if userSignup.purchase_date + timedelta(days=30) <= current_date:
-            userSignup.has_expired = True
-            userSignup.save()
+        current_date = timezone.now()
+
+        if user.purchase_date + timedelta(days=30) <= current_date:
+            user.has_expired = True
+            user.save()
         
         serializer = signupSerializer(user)
         return Response(serializer.data)
-
 
 class SocketClient:
     def __init__(self):
