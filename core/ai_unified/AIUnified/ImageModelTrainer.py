@@ -10,7 +10,7 @@ import uuid
 import queue
 import threading
 import shutil
-
+from tensorflow.keras import regularizers
 
 class ImageModelTrainer:
     def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, userId):
@@ -28,7 +28,7 @@ class ImageModelTrainer:
         self.img_height = 120
         self.img_width = 120
         self.epoch_data = []
-        self.model_path = f'model{str(uuid.uuid4())}.h5'
+        self.model_path = f'model{str(uuid.uuid4())}.keras'
         self.directory_path = "models"
         self.complete_path = os.path.join(self.directory_path, self.model_path)
         self.userId = userId
@@ -87,28 +87,28 @@ class ImageModelTrainer:
 
         tf.random.set_seed(123)
         self.model = models.Sequential(
-            [
-                layers.Rescaling(
-                    1.0 / 255, input_shape=[self.img_height, self.img_width, 3]),
-                layers.Conv2D(128, (3, 3), activation="relu"),
-                layers.MaxPooling2D((2, 2)),
-                layers.Conv2D(64, (3, 3), activation="relu"),
-                layers.MaxPooling2D((2, 2)),
-                layers.Conv2D(32, (3, 3), activation="relu"),
-                layers.MaxPooling2D((2, 2)),
-                layers.Flatten(),
-                layers.Dense(1024, activation="relu"),
-                layers.Dropout(0.35),
-                layers.Dense(512, activation="relu"),
-                layers.Dropout(0.35),
-                layers.Dense(256, activation="relu"),
-                layers.Dropout(0.35),
-                layers.Dense(128, activation="relu"),
-                layers.Dropout(0.35),
-                layers.Dense(64, activation="relu"),
-                layers.Dense(self.num_classes),
-            ]
-        )
+        [
+            layers.Rescaling(
+                1.0 / 255, input_shape=[self.img_height, self.img_width, 3]),
+            layers.Conv2D(128, (3, 3), activation="relu", kernel_regularizer=regularizers.l2(0.001)),
+            layers.MaxPooling2D((2, 2)),
+            layers.Conv2D(64, (3, 3), activation="relu", kernel_regularizer=regularizers.l2(0.001)),
+            layers.MaxPooling2D((2, 2)),
+            layers.Conv2D(32, (3, 3), activation="relu", kernel_regularizer=regularizers.l2(0.001)),
+            layers.MaxPooling2D((2, 2)),
+            layers.Flatten(),
+            layers.Dense(1024, activation="relu", kernel_regularizer=regularizers.l2(0.001)),
+            layers.Dropout(0.35),
+            layers.Dense(512, activation="relu", kernel_regularizer=regularizers.l2(0.001)),
+            layers.Dropout(0.35),
+            layers.Dense(256, activation="relu", kernel_regularizer=regularizers.l2(0.001)),
+            layers.Dropout(0.35),
+            layers.Dense(128, activation="relu", kernel_regularizer=regularizers.l2(0.001)),
+            layers.Dropout(0.35),
+            layers.Dense(64, activation="relu", kernel_regularizer=regularizers.l2(0.001)),
+            layers.Dense(self.num_classes),
+        ]
+    )
 
         lr = 0.001
         self.model.compile(
@@ -228,17 +228,15 @@ def load_model(url):
 def prepare_image(image_path, img_height, img_width):
     img = image.load_img(image_path, target_size=(img_height, img_width))
     img_array = image.img_to_array(img)
-    img_array = np.expand_dims(img_array, 0)  # Create batch axis
-    img_array /= 255.0  # Normalize image
+    img_array = tf.expand_dims(img_array, 0)
     return img_array
 
 # Make predictions
 def make_predictions(image_path, model, img_height, img_width):
     img_array = prepare_image(image_path, img_height, img_width)
     predictions = model.predict(img_array)
-    class_idx = np.argmax(predictions, axis=1)[0]
-    class_prob = predictions[0][class_idx]
-    return class_idx, class_prob
+    score = tf.nn.softmax(predictions[0])
+    return tf.argmax(score), tf.reduce_max(score)
 
 # Load the model
 model = load_model(model_url)
@@ -262,7 +260,6 @@ import requests
 
 url = "https://api.xanderco.in/core/interference/"
 
-
 data = {{
     'userId': '{self.userId}',
     'modelId': '{_id}',
@@ -272,7 +269,7 @@ files = {{
     'image': open('path_to_your_image_file.jpg', 'rb')  # Replace with your image file path
 }}
 
-response = requests.post(url, headers=headers, data=data, files=files)
+response = requests.post(url, data=data, files=files)
 
 if response.status_code == 200:
     print("Response:")
@@ -294,7 +291,6 @@ data.append('image', document.querySelector('input[type="file"]').files[0]);  //
 
 fetch(url, {{
     method: 'POST',
-    headers: headers,
     body: data
 }})
 .then(response => response.json().then(data => {{
@@ -310,7 +306,6 @@ fetch(url, {{
     console.error(`An error occurred: ${{error}}`);
 }});
 '''
-
         if model_url:
             model_obj = {
                 "modelUrl": model_url,

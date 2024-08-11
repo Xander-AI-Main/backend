@@ -303,7 +303,7 @@ if __name__ == "__main__":
         '''
         
         api_code_python = f'''
-        import requests
+import requests
 import json
 
 url = "https://api.xanderco.in/core/interference/" 

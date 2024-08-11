@@ -334,7 +334,7 @@ def preprocess_text(text, tokenizer, max_sequence_length):
 def make_predictions(text, model, tokenizer, label_encoder, max_sequence_length):
     preprocessed_text = preprocess_text(text, tokenizer, max_sequence_length)
     predictions = model.predict(preprocessed_text)
-    predicted_class = np.argmax(predictions, axis=1)
+    predicted_class = tf.argmax(predictions, axis=1)
     predicted_label = label_encoder.inverse_transform(predicted_class)
     return predicted_label[0], predictions[0]
 

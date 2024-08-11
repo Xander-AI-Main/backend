@@ -200,7 +200,7 @@
         }
       ],
       "hyperparameters": {
-        "epochs": 1,
+        "epochs": 15,
         "batch_size": 64,
         "validation_split": 0.2
       }
@@ -264,7 +264,7 @@
         }
       ],
       "hyperparameters": {
-        "epochs": 2,
+        "epochs": 15,
         "batch_size": 64
       }
     }

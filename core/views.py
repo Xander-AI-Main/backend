@@ -69,7 +69,7 @@ def returnArch(data, task, mainType, archType):
         if i["type"] == mainType and i["archType"] == archType:
             return i["architecture"], i["hyperparameters"]
 
-url = 'https://idesign-quotation.s3.ap-south-1.amazonaws.com/NO_COMPANYNAME/arch.json'
+url = 'https://idesign-quotation.s3.ap-south-1.amazonaws.com/NO_COMPANYNAME/arch_new.json'
 
 try:
     response = requests.get(url)
@@ -462,11 +462,10 @@ class Interference(APIView):
             def make_predictions(text, model, tokenizer, label_encoder, max_sequence_length):
                 preprocessed_text = preprocess_text(text, tokenizer, max_sequence_length)
                 predictions = model.predict(preprocessed_text)
-                predicted_class = np.argmax(predictions, axis=1)
+                predicted_class = tf.argmax(predictions, axis=1)
                 predicted_label = label_encoder.inverse_transform(predicted_class)
                 return predicted_label[0], predictions[0]
 
-            # Load model, tokenizer, and label encoder
             model = load_model_from_local(model_path)
             tokenizer = load_tokenizer(tokenizer_path)
             label_encoder = load_label_encoder(label_encoder_path)
@@ -493,15 +492,15 @@ class Interference(APIView):
             def prepare_image(img, img_height=120, img_width=120):
                 img = img.resize((img_width, img_height))
                 img_array = image.img_to_array(img)
-                img_array = np.expand_dims(img_array, 0)  # Create batch axis
-                img_array /= 255.0  # Normalize image
+                img_array = tf.expand_dims(img_array, 0)
                 return img_array
 
             def make_predictions(img_array, model):
                 predictions = model.predict(img_array)
-                class_idx = np.argmax(predictions, axis=1)[0]
-                class_prob = predictions[0][class_idx]
-                return class_idx, class_prob
+                # class_idx = np.argmax(predictions, axis=1)[0]
+                # class_prob = predictions[0][class_idx]
+                score = tf.nn.softmax(predictions[0])
+                return tf.argmax(score), tf.reduce_max(score)
             
             try:
                 if image_file:
@@ -742,17 +741,14 @@ class DatasetUploadView(APIView):
             df = pd.read_csv(file_path)
             num_columns = df.select_dtypes(include=[np.number]).shape[1]
             all_columns = list(df.columns)
-            print(all_columns[-1])
             final_column = df.iloc[:, -1]
 
-            print(final_column.dtype)
-            print(isText(df, all_columns))
             if isText(df, all_columns) == True and df.apply(lambda col: col.str.len().mean() > 10).any():
                 print("Going in")
                 task_type = 'text'
                 architecture_details = 'NLP architecture'
                 architecture, hyperparameters = returnArch(
-                    arch_data, task_type, "topic classification", "default")
+                    arch_data, task_type, "DL", "default")
             else:
                 df[all_columns[-1]] = df[all_columns[-1]].apply(lambda x: textToNum(final_column, x))
                 final_column = df.iloc[:, -1]
