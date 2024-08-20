@@ -669,11 +669,10 @@ class DatasetUploadView(APIView):
             
             if user.s3_storage_used > 0 and user.s3_storage_used >= user.max_storage_allowed:
                 raise PermissionDenied("Storage limit reached")
-            
-            # s3_storage, created = S3StorageUsage.objects.get_or_create(id=1)
-            # s3_storage.used_gb += file_size_gb
-            # s3_storage.save()
-            print(file_path)
+
+            if user.has_expired == True:
+                raise PermissionDenied("Your plan has expired")
+
             task_type, hyperparameter, architecture_details = self.determine_task(
                 file_path)
 
@@ -807,7 +806,7 @@ class TrainModelView(APIView):
 
             if user.max_cpu_hours_allowed > 0 and user.cpu_hours_used >= user.max_cpu_hours_allowed:
                 raise PermissionDenied("CPU hours limit reached")
-
+            
             if user.max_gpu_hours_allowed > 0 and user.gpu_hours_used >= user.max_gpu_hours_allowed:
                 raise PermissionDenied("GPU hours limit reached")
             

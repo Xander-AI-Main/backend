@@ -13,6 +13,7 @@ import queue
 import threading
 import random
 import numpy as np
+from tensorflow.keras.regularizers import l2
 
 class ClassificationDL:
     def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, userId):
@@ -25,12 +26,13 @@ class ClassificationDL:
         self.hyperparameters = hyperparameters
         self.api_url = 'https://s3-api-uat.idesign.market/api/upload'
         self.bucket_name = 'idesign-quotation'
-        self.model_path = f'model{str(uuid.uuid4())}.h5'
+        self.model_path = f'bestmodel{str(uuid.uuid4())}.h5'
         self.scaler_path = f'scaler{str(uuid.uuid4())}.pkl'
         self.directory_path = "models"
         self.complete_model_path = os.path.join(self.directory_path, self.model_path)
         self.complete_scaler_path = os.path.join(self.directory_path, self.scaler_path)
         self.userId = userId
+        self.coff = 0
 
         self.load_data()
         self.preprocess_data()
@@ -46,7 +48,7 @@ class ClassificationDL:
 
     def load_data(self):
         self.df = pd.read_csv(self.dataset_url)
-        
+
         columns_to_drop = [col for col in self.df.columns if 'id' in col.lower()]
         self.df = self.df.drop(columns=columns_to_drop)
         
@@ -57,6 +59,14 @@ class ClassificationDL:
             self.y = self.y.apply(lambda x: self.textToNum(self.y, x))
 
         self.X = pd.get_dummies(self.X, drop_first=True)
+        
+        correlation_matrix = self.X.corr().abs()
+
+        upper_triangle = correlation_matrix.where(
+            pd.np.triu(pd.np.ones(correlation_matrix.shape), k=1).astype(pd.np.bool_)
+        )
+        self.coff = upper_triangle.stack().mean()
+        print(self.coff)
 
     def preprocess_data(self):
         self.scaler = StandardScaler()
@@ -82,11 +92,15 @@ class ClassificationDL:
                 elif arch['layer'] == "Dropout":
                     self.model.add(Dropout(arch['ratio']))
         else:
-            self.model.add(Dense(128, input_shape=(self.X_train.shape[1],), activation="relu"))
-            self.model.add(Dropout(0.1))
-            self.model.add(Dense(64, activation="relu"))
-            self.model.add(Dropout(0.1))
-            self.model.add(Dense(32, activation="relu"))
+            self.model.add(Dense(512, kernel_regularizer=l2(0.01), input_shape=(self.X_train.shape[1],), activation="relu"))
+            self.model.add(Dropout(0.3))
+            self.model.add(Dense(256, kernel_regularizer=l2(0.01), activation="relu"))
+            self.model.add(Dropout(0.3))
+            self.model.add(Dense(128, kernel_regularizer=l2(0.01), activation="relu"))
+            self.model.add(Dropout(0.3))
+            self.model.add(Dense(64, kernel_regularizer=l2(0.01), activation="relu"))
+            self.model.add(Dropout(0.3))
+            self.model.add(Dense(32, kernel_regularizer=l2(0.01), activation="relu"))
 
         if isBinary:
             self.model.add(Dense(1, activation='sigmoid'))
@@ -97,7 +111,7 @@ class ClassificationDL:
 
     def train_model(self):
         self.epoch_data = []
-
+        self.current_val_acc = 0
         class CustomCallback(Callback):
             def __init__(self, outer_instance, validation_data):
                 super().__init__()
@@ -116,10 +130,14 @@ class ClassificationDL:
                     "test_loss": test_loss,
                     "test_acc": test_acc
                 }
-
                 self.outer_instance.epoch_data.append(epoch_info)
                 self.outer_instance.current_epoch_info = epoch_info
                 self.outer_instance.epoch_info_queue.put(epoch_info)
+
+                if test_acc > self.outer_instance.current_val_acc:
+                    self.outer_instance.save_model()
+                    self.outer_instance.current_val_acc = test_acc
+                    print(f"New best model saved with validation accuracy: {test_acc}")
 
         self.epoch_info_queue = queue.Queue()
         custom_callback = CustomCallback(
@@ -205,7 +223,7 @@ class ClassificationDL:
         training_thread.join()
 
         # self.evaluate_model()
-        self.save_model()
+        
         model_url, scaler_url = self.upload_files_to_api()
 
         _id = str(uuid.uuid4())

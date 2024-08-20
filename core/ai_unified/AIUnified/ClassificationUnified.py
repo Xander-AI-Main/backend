@@ -11,8 +11,8 @@ def returnArch (data, task, mainType, archType):
             return i["architecture"], i["hyperparameters"]
         
 if __name__ == "__main__":
-    dataset_url = "https://idesign-quotation.s3.ap-south-1.amazonaws.com/NO_COMPANYNAME/Sonar.csv" # will be sent by user
-    hasChanged = True # will be sent by user
+    dataset_url = "Student_performance_data _.csv" # will be sent by user
+    hasChanged = False # will be sent by user
     task = "classification" # will be sent by user
     mainType = "DL" # will be sent by user
     archType = "default" # will be sent by user
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     if task == "classification" and hasChanged == False:
         if mainType == "DL":
             architecture, hyperparameters = returnArch(arch_data, task, mainType, archType)
-            model_trainer = ClassificationDL(dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
+            model_trainer = ClassificationDL(dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, "9")
         
             executor = model_trainer.execute()
             
@@ -40,7 +40,7 @@ if __name__ == "__main__":
         elif mainType == "ML":
             print("In ML")
             architecture, hyperparameters = returnArch(arch_data, task, mainType, archType)
-            model_trainer = ClassificationML(dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
+            model_trainer = ClassificationML(dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters , "9")
             model_obj = model_trainer.execute()
             print(model_obj)
     if task == "classification" and hasChanged == True:
