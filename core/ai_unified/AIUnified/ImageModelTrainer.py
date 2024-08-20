@@ -24,7 +24,7 @@ class ImageModelTrainer:
         self.epoch_info_queue = queue.Queue()
         self.api_url = 'https://s3-api-uat.idesign.market/api/upload'
         self.bucket_name = 'idesign-quotation'
-        self.data_dir = "extracted_files"
+        self.data_dir = f"extracted_files{str(uuid.uuid4())}"
         self.img_height = 120
         self.img_width = 120
         self.epoch_data = []
