@@ -1,5 +1,5 @@
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 import tensorflow as tf
@@ -28,57 +28,54 @@ class ClassificationDL:
         self.bucket_name = 'idesign-quotation'
         self.model_path = f'bestmodel{str(uuid.uuid4())}.h5'
         self.scaler_path = f'scaler{str(uuid.uuid4())}.pkl'
+        self.label_encoder_path = f'label_encoder{str(uuid.uuid4())}.pkl'
         self.directory_path = "models"
         self.complete_model_path = os.path.join(self.directory_path, self.model_path)
         self.complete_scaler_path = os.path.join(self.directory_path, self.scaler_path)
+        self.complete_label_encoder_path = os.path.join(self.directory_path, self.label_encoder_path)
         self.userId = userId
         self.coff = 0
 
         self.load_data()
         self.preprocess_data()
 
-    def textToNum(self, finalColumn, x):
-        arr = finalColumn.unique()
-        indices = np.where(arr == x)[0]
-        if indices.size > 0:
-            index = indices[0]
-            return index
-        else:
-            return -1
-
     def load_data(self):
         self.df = pd.read_csv(self.dataset_url)
-
         columns_to_drop = [col for col in self.df.columns if 'id' in col.lower()]
         self.df = self.df.drop(columns=columns_to_drop)
         
         self.X = self.df.iloc[:, :-1]
         self.y = self.df.iloc[:, -1]
 
+        self.label_encoders = {}
+        for column in self.X.select_dtypes(include=['object']).columns:
+            le = LabelEncoder()
+            self.X[column] = le.fit_transform(self.X[column])
+            self.label_encoders[column] = le
+
         if self.y.dtype == object:
-            self.y = self.y.apply(lambda x: self.textToNum(self.y, x))
+            self.y = LabelEncoder().fit_transform(self.y)
 
-        self.X = pd.get_dummies(self.X, drop_first=True)
-        
         correlation_matrix = self.X.corr().abs()
-
         upper_triangle = correlation_matrix.where(
             pd.np.triu(pd.np.ones(correlation_matrix.shape), k=1).astype(pd.np.bool_)
         )
         self.coff = upper_triangle.stack().mean()
+        print(self.X)
+        print(self.y)
         print(self.coff)
 
     def preprocess_data(self):
         self.scaler = StandardScaler()
         self.X_standardized = self.scaler.fit_transform(self.X)
         self.X = self.X_standardized
-        self.y = self.y.values
+        self.y = self.y
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
             self.X, self.y, test_size=0.2, random_state=42)
 
     def create_model(self):
         unique_values = np.unique(self.y)
-        isBinary = len(unique_values) == 2
+        isBinary = len(unique_values) <= 2
         num_classes = len(unique_values)
 
         self.model = tf.keras.Sequential()
@@ -156,20 +153,23 @@ class ClassificationDL:
         y_pred_proba = self.model.predict(self.X_test)
         y_pred = (y_pred_proba > 0.5).astype(int)
         self.accuracy = accuracy_score(self.y_test, y_pred)
-        # print(f"Accuracy: {self.accuracy}")
 
     def save_model(self):
         if not os.path.exists(self.directory_path):
             os.makedirs(self.directory_path)
             model_path = os.path.join(self.directory_path, self.model_path)
             scaler_path = os.path.join(self.directory_path, self.scaler_path)
+            label_encoder_path = os.path.join(self.directory_path, self.label_encoder_path)
             self.model.save(model_path)
             joblib.dump(self.scaler, scaler_path)
+            joblib.dump(self.label_encoders, label_encoder_path)
         else:
             model_path = os.path.join(self.directory_path, self.model_path)
             scaler_path = os.path.join(self.directory_path, self.scaler_path)
+            label_encoder_path = os.path.join(self.directory_path, self.label_encoder_path)
             self.model.save(model_path)
             joblib.dump(self.scaler, scaler_path)
+            joblib.dump(self.label_encoders, label_encoder_path)
 
     def upload_files_to_api(self):
         try:
@@ -193,6 +193,7 @@ class ClassificationDL:
                 'bucketName': (None, self.bucket_name),
                 'files': open(self.complete_scaler_path, 'rb')
             }
+
             response_scaler = requests.put(self.api_url, files=files)
             response_data_scaler = response_scaler.json()
             scaler_url = response_data_scaler.get(
@@ -204,8 +205,24 @@ class ClassificationDL:
                 print(
                     f"Failed to upload scaler. Error: {response_data_scaler.get('error')}")
                 return model_url, None
+            
+            files = {
+                'bucketName': (None, self.bucket_name),
+                'files': open(self.complete_label_encoder_path, 'rb')
+            }
 
-            return model_url, scaler_url
+            response_label = requests.put(self.api_url, files=files)
+            response_data_label = response_label.json()
+            label_url = response_data_label.get(
+                'locations', [])[0] if response_label.status_code == 200 else None
+
+            if label_url:
+                print(f"label uploaded successfully. URL: {label_url}")
+            else:
+                print(
+                    f"Failed to upload label. Error: {response_data_label.get('error')}")
+
+            return model_url, scaler_url, label_url
 
         except requests.exceptions.RequestException as e:
             print(f"An error occurred: {str(e)}")
@@ -224,7 +241,7 @@ class ClassificationDL:
 
         # self.evaluate_model()
         
-        model_url, scaler_url = self.upload_files_to_api()
+        model_url, scaler_url, label_url = self.upload_files_to_api()
 
         _id = str(uuid.uuid4())
 
@@ -382,7 +399,7 @@ fetch(url, {{
             "modelUrl": model_url if model_url and scaler_url else "",
             "size": os.path.getsize(self.complete_model_path) / (1024 ** 3) if model_url and scaler_url else 0,
             "id": _id if model_url and scaler_url else "",
-            "helpers": [{"scaler": scaler_url}] if model_url and scaler_url else [],
+            "helpers": [{"scaler": scaler_url}, {"label_encoders": label_url}] if model_url and scaler_url else [],
             "modelArch": self.architecture,
             "hyperparameters": self.hyperparameters,
             "epoch_data": self.epoch_data,

@@ -284,6 +284,14 @@ def load_scaler_from_local(path):
     except Exception as e:
         print("Error loading scaler from path: " + str(e))
         return None
+    
+def load_label_encoders_from_local(path):
+    try:
+        label_encoder = joblib.load(path)
+        return label_encoder
+    except Exception as e:
+        print("Error loading scaler from path: " + str(e))
+        return None
 
 def load_tokenizer(path):
     try:
@@ -388,56 +396,65 @@ class Interference(APIView):
         elif task == "classification":
             helpers = current_model["helpers"]
             scalerUrl = helpers[0]["scaler"]
-            
+            labelEncoderUrl = helpers[1]["label_encoders"] 
+
             model_name = modelUrl.split('/')[-1]
             scaler_name = scalerUrl.split('/')[-1]
+            label_encoder_name = labelEncoderUrl.split('/')[-1]
 
             model_path = os.path.join("models", model_name)
-            scaler_path = os.path.join("models", scaler_name)  
+            scaler_path = os.path.join("models", scaler_name)
+            label_encoder_path = os.path.join("models", label_encoder_name)
 
             model = load_model_from_local(model_path)
             scaler = load_scaler_from_local(scaler_path)
+            label_encoders = load_label_encoders_from_local(label_encoder_path)
 
-            def preprocess_input(data, scaler, categorical_columns, column_names):
+            def preprocess_input(data, scaler, label_encoders, column_names):
                 df = pd.DataFrame([data], columns=column_names)
-                df = pd.get_dummies(df, columns=categorical_columns, drop_first=True)
+
+                for column, le in label_encoders.items():
+                    if column in df.columns:
+                        df[column] = le.transform(df[column])
+
+                df = pd.get_dummies(df, columns=df.select_dtypes(include=['object']).columns, drop_first=True)
                 df = df.reindex(columns=scaler.feature_names_in_, fill_value=0)
                 data_scaled = scaler.transform(df)
                 return data_scaled
 
             def make_predictions(model, data_scaled):
                 predictions_proba = model.predict(data_scaled)
-                if predictions_proba.shape[1] == 1:  # Binary classification
+                if predictions_proba.shape[1] == 1:  
                     predictions = (predictions_proba > 0.5).astype(int)
-                else:  # Multi-class classification
+                else: 
                     predictions = np.argmax(predictions_proba, axis=1)
                 return predictions, predictions_proba
 
             if model and scaler:
                 df = pd.read_csv(datasetUrl)
                 column_names = df.columns.drop(df.columns[-1]).tolist()
-                categorical_columns = categorical_columns = df.drop(columns=df.columns[-1]).select_dtypes(include=['object']).columns.tolist()
+                categorical_columns = df.drop(columns=df.columns[-1]).select_dtypes(include=['object']).columns.tolist()
                 y = df.iloc[:, -1]
 
-                data_scaled = preprocess_input(input_data, scaler, categorical_columns, column_names)
+                data_scaled = preprocess_input(input_data, scaler, label_encoders, column_names)
 
                 predictions, predictions_proba = make_predictions(model, data_scaled)
 
-                if predictions_proba.shape[1] == 1:  # Binary classification
+                if predictions_proba.shape[1] == 1:  
                     pred = None
                     if y.dtype == object:
                         pred = numToText(y, predictions[0][0])
                     else:
                         pred = int(predictions[0][0])
                     return Response({"prediction": [{"predicted_class": pred}, {"probability": float(predictions_proba[0][0])}]}, status=status.HTTP_200_OK)
-                else:  # Multi-class classification
+                else: 
                     if y.dtype == object:
                         pred = numToText(y, predictions[0])
                     else:
                         pred = int(predictions[0])
                     return Response({"prediction": [{"predicted_class": pred}, {"probabilities": predictions_proba[0].tolist()}]}, status=status.HTTP_200_OK)
             else:
-                return Response({"error": "Failed to load model or scaler"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                return Response({"error": "Failed to load model, scaler, or label encoders"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         elif task == "text":
             helpers = current_model["helpers"]

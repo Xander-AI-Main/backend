@@ -2,12 +2,12 @@
 import requests
 import json
 
-url = "https://api.xanderco.in/core/interference/" 
+url = "http://127.0.0.1:8000/core/interference/" 
 
 data = {
-    "data": "This course is made for people who want to learn DSA from A to Z for free in a well-organized and structured manner. The lecture quality is better than what you get in paid courses, the only thing we don’t provide is doubt support, but trust me our YouTube video comments resolve that as well, we have a wonderful community of 250K+ people who engage in all of the videos.",
-    "modelId": '2764c62d-e80b-499c-bc8b-8516cbf79db8',
-    "userId": '41',
+    "data": [62257, 'Chevrolet', 'Camaro 1SS', 2017, 50850, 'Gasoline', '455.0HP 6.2L 8 Cylinder Engine Gasoline Fuel', 'A/T', 'Orange', 'Black', 'None reported'],
+    "modelId": '210a8cf6-9132-483a-88be-3748fb1f3468',
+    "userId": '40',
 }
 
 try:
