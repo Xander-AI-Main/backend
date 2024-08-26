@@ -27,7 +27,7 @@
         { "layer": "Dense", "neurons": 1, "define_input_shape": "false" }
       ],
       "hyperparameters": {
-        "epochs": 100,
+        "epochs": 10,
         "batch_size": 32,
         "validation_size": 0.2
       }
@@ -110,7 +110,7 @@
         }
       ],
       "hyperparameters": {
-        "epochs": 100,
+        "epochs": 50,
         "batch_size": 32,
         "validation_size": 0.2
       }

@@ -11,7 +11,7 @@ def returnArch(data, task, mainType, archType):
             return i["architecture"], i["hyperparameters"]
 
 if __name__ == "__main__":
-    dataset_url = "insurance.csv"  # will be sent by user
+    dataset_url = "test.csv"  # will be sent by user
     hasChanged = False  # will be sent by user
     task = "regression"  # will be sent by user
     mainType = "DL"  # will be sent by user
@@ -28,7 +28,7 @@ if __name__ == "__main__":
             architecture, hyperparameters = returnArch(
                 arch_data, task, mainType, archType)
             model_trainer = RegressionDL(
-                dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
+                dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, "9")
             print("executing")
             executor = model_trainer.execute()
             
@@ -44,7 +44,7 @@ if __name__ == "__main__":
             architecture, hyperparameters = returnArch(
                 arch_data, task, mainType, archType)
             model_trainer = RegressionML(
-                dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
+                dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, "9")
             model_obj = model_trainer.execute()
             print(model_obj)
     if task == "regression" and hasChanged == True:
@@ -76,7 +76,7 @@ if __name__ == "__main__":
             hyperparameters = {"epochs": 1,
                                "batch_size": 32, "validation_size": 0.2}
             model_trainer = RegressionDL(
-                dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
+                dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, "9")
             model_obj = model_trainer.execute()
             print(model_obj)
         elif mainType == "ML":
@@ -84,6 +84,6 @@ if __name__ == "__main__":
             architecture, hyperparameters = returnArch(
                 arch_data, task, mainType, archType)
             model_trainer = RegressionML(
-                dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters)
+                dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, "9")
             model_obj = model_trainer.execute()
             print(model_obj)

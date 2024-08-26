@@ -15,6 +15,7 @@ import queue
 import threading
 import random
 from sklearn.model_selection import GridSearchCV
+from sklearn.preprocessing import LabelEncoder
 
 class RegressionDL:
     def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, userId):
@@ -24,15 +25,17 @@ class RegressionDL:
         self.architecture = architecture
         self.hasChanged = hasChanged
         self.hyperparameters = hyperparameters
-        self.data, self.target_col = self.load_and_prepare_data()
+        self.data, self.target_col, self.label_encoder = self.load_and_prepare_data()
         self.task_type = task
         self.model = None
         self.scaler = StandardScaler()
         self.model_file_path = f'model{str(uuid.uuid4())}.h5'
         self.scaler_file_path = f'scaler{str(uuid.uuid4())}.pkl'
+        self.label_encoder_path = f'label_encoder{str(uuid.uuid4())}.pkl'
         self.directory_path = "models"
         self.complete_model_path = os.path.join(self.directory_path, self.model_file_path)
         self.complete_scaler_path = os.path.join(self.directory_path, self.scaler_file_path)
+        self.complete_label_encoder_path = os.path.join(self.directory_path, self.label_encoder_path)
         self.api_url = 'https://s3-api-uat.idesign.market/api/upload'
         self.bucket_name = 'idesign-quotation'
         self.epoch_info_queue = queue.Queue()
@@ -43,24 +46,29 @@ class RegressionDL:
         uni = list(set(data))
         return uni.index(value)
 
+    
     def load_and_prepare_data(self):
         df = pd.read_csv(self.dataset_url)
+        df = df.dropna()
+        df = df.iloc[:25000]
         columns_to_drop = [col for col in df.columns if 'id' in col.lower()]
         df = df.drop(columns=columns_to_drop)
         target_col = df.columns[-1]
+        
+        label_encoders = {}
+        
         for column_name in df.columns:
             unique_values = df[column_name].nunique()
             print(unique_values)
-            if unique_values <= 4 and df[column_name].dtype in ['object', 'string']:
-                dummies = pd.get_dummies(df[column_name], prefix=column_name)
-                df = pd.concat([df, dummies], axis=1)
-                df = df.drop(columns=[column_name])
-                print(f"Dummies created for column '{column_name}'.")
-
-        string_columns = df.select_dtypes(include=['object']).columns
-        df = df.drop(columns=string_columns)
-        # print(df)
-        return df, target_col
+            print(df[column_name].dtype)
+            if df[column_name].dtype in ['object']:
+                le = LabelEncoder()
+                df[column_name] = le.fit_transform(df[column_name])
+                label_encoders[column_name] = le
+                print(f"Label encoding applied to column '{column_name}'.")
+        
+        print(df)
+        return df, target_col, label_encoders
 
     def determine_task_type(self):
         target_values = self.data[self.target_col]
@@ -158,13 +166,17 @@ class RegressionDL:
             os.makedirs(self.directory_path)
             model_path = os.path.join(self.directory_path, self.model_file_path)
             scaler_path = os.path.join(self.directory_path, self.scaler_file_path)
+            label_path = os.path.join(self.directory_path, self.label_encoder_path)
             self.model.save(model_path)
             joblib.dump(self.scaler, scaler_path)
+            joblib.dump(self.label_encoder, label_path)
         else:
             model_path = os.path.join(self.directory_path, self.model_file_path)
             scaler_path = os.path.join(self.directory_path, self.scaler_file_path)
+            label_path = os.path.join(self.directory_path, self.label_encoder_path)
             self.model.save(model_path)
             joblib.dump(self.scaler, scaler_path)
+            joblib.dump(self.label_encoder, label_path)
 
     def upload_files_to_api(self):
         try:
@@ -200,7 +212,23 @@ class RegressionDL:
                     f"Failed to upload scaler. Error: {response_data_scaler.get('error')}")
                 return model_url, None
 
-            return model_url, scaler_url
+            files = {
+                'bucketName': (None, self.bucket_name),
+                'files': open(self.complete_label_encoder_path, 'rb')
+            }
+            response_label = requests.put(self.api_url, files=files)
+            response_data_label = response_label.json()
+            label_url = response_data_label.get(
+                'locations', [])[0] if response_label.status_code == 200 else None
+
+            if label_url:
+                print(f"label uploaded successfully. URL: {label_url}")
+            else:
+                print(
+                    f"Failed to upload label. Error: {response_data_label.get('error')}")
+                return model_url, None
+
+            return model_url, scaler_url, label_url
 
         except requests.exceptions.RequestException as e:
             print(f"An error occurred: {str(e)}")
@@ -226,7 +254,7 @@ class RegressionDL:
 
         self.evaluate_model()
         self.save_model()
-        model_url, scaler_url = self.upload_files_to_api()
+        model_url, scaler_url, label_url = self.upload_files_to_api()
 
         _id = str(uuid.uuid4())
         df = pd.read_csv(self.dataset_url)
@@ -374,7 +402,7 @@ fetch(url, {{
             "modelUrl": model_url if model_url and scaler_url else "",
             "size": (os.path.getsize(self.complete_model_path) / (1024 ** 3) + os.path.getsize(self.complete_scaler_path) / (1024 ** 3)) if model_url and scaler_url else 0,
             "id": _id if model_url and scaler_url else "",
-            "helpers": [{"scaler": scaler_url}] if model_url and scaler_url else [],
+            "helpers": [{"scaler": scaler_url}, {"label_encoder": label_url}] if model_url and scaler_url else [],
             "modelArch": self.architecture,
             "hyperparameters": self.hyperparameters,
             "epoch_data": self.epoch_data,

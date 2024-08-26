@@ -3,7 +3,7 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 import tensorflow as tf
-from tensorflow.keras.layers import Dense, Dropout
+from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, Add, Activation, Input
 from tensorflow.keras.callbacks import Callback
 import joblib
 import requests
@@ -14,6 +14,8 @@ import threading
 import random
 import numpy as np
 from tensorflow.keras.regularizers import l2
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.feature_selection import mutual_info_classif
 
 class ClassificationDL:
     def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, userId):
@@ -41,6 +43,8 @@ class ClassificationDL:
 
     def load_data(self):
         self.df = pd.read_csv(self.dataset_url)
+        self.df = self.df.dropna()
+        self.df = self.df.iloc[:25000]
         columns_to_drop = [col for col in self.df.columns if 'id' in col.lower()]
         self.df = self.df.drop(columns=columns_to_drop)
         
@@ -61,9 +65,22 @@ class ClassificationDL:
             pd.np.triu(pd.np.ones(correlation_matrix.shape), k=1).astype(pd.np.bool_)
         )
         self.coff = upper_triangle.stack().mean()
+
+        # tree_clf = DecisionTreeClassifier(max_depth=3)
+        # tree_clf.fit(self.X, self.y)
+        
+        # feature_importances = tree_clf.feature_importances_
+        
+        # mutual_info_scores = mutual_info_classif(self.X, self.y)
+        
+        # features_to_drop = [i for i in range(len(feature_importances)) 
+        #                     if feature_importances[i] == 0 or mutual_info_scores[i] < 0.01]
+
+        # self.X = self.X.drop(self.X.columns[features_to_drop], axis=1)
         print(self.X)
-        print(self.y)
-        print(self.coff)
+        print(len(list(self.df.values)))
+        print("Final Features:", self.X.columns)
+
 
     def preprocess_data(self):
         self.scaler = StandardScaler()
@@ -72,13 +89,33 @@ class ClassificationDL:
         self.y = self.y
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
             self.X, self.y, test_size=0.2, random_state=42)
+        
+    def residual_block(self, x, units, dropout_rate=0.3):
+        """A residual block with two Dense layers and a skip connection."""
+        shortcut = x
+        
+        # Adjust shortcut to match the new shape
+        if int(shortcut.shape[-1]) != units:
+            shortcut = Dense(units, activation=None)(shortcut)
+            shortcut = BatchNormalization()(shortcut)
+        
+        x = Dense(units, activation='relu')(x)
+        x = BatchNormalization()(x)
+        x = Dropout(dropout_rate)(x)
+        
+        x = Dense(units, activation=None)(x)
+        x = BatchNormalization()(x)
+        
+        x = Add()([x, shortcut])
+        x = Activation('relu')(x)
 
+        return x
+    
     def create_model(self):
         unique_values = np.unique(self.y)
         isBinary = len(unique_values) <= 2
         num_classes = len(unique_values)
 
-        self.model = tf.keras.Sequential()
         print(self.X_train.shape[1])
         if self.task == "classification" and self.hasChanged:
             for arch in self.architecture:
@@ -89,22 +126,59 @@ class ClassificationDL:
                 elif arch['layer'] == "Dropout":
                     self.model.add(Dropout(arch['ratio']))
         else:
-            self.model.add(Dense(512, kernel_regularizer=l2(0.01), input_shape=(self.X_train.shape[1],), activation="relu"))
-            self.model.add(Dropout(0.3))
-            self.model.add(Dense(256, kernel_regularizer=l2(0.01), activation="relu"))
-            self.model.add(Dropout(0.3))
-            self.model.add(Dense(128, kernel_regularizer=l2(0.01), activation="relu"))
-            self.model.add(Dropout(0.3))
-            self.model.add(Dense(64, kernel_regularizer=l2(0.01), activation="relu"))
-            self.model.add(Dropout(0.3))
-            self.model.add(Dense(32, kernel_regularizer=l2(0.01), activation="relu"))
+            if len(list(self.df.values)) <= 5000:
+                self.model = tf.keras.Sequential()
+                self.model.add(Dense(512, kernel_regularizer=l2(0.01), input_shape=(self.X_train.shape[1],), activation="relu"))
+                self.model.add(Dropout(0.3))
+                self.model.add(BatchNormalization())
 
-        if isBinary:
-            self.model.add(Dense(1, activation='sigmoid'))
-            self.model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-        else:
-            self.model.add(Dense(num_classes, activation='softmax'))
-            self.model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+                self.model.add(Dense(256, kernel_regularizer=l2(0.01), activation="relu"))
+                self.model.add(Dropout(0.3))
+                self.model.add(BatchNormalization())
+
+                self.model.add(Dense(128, kernel_regularizer=l2(0.01), activation="relu"))
+                self.model.add(Dropout(0.25))
+                # self.model.add(BatchNormalization())
+
+                self.model.add(Dense(64, kernel_regularizer=l2(0.01), activation="relu"))
+                self.model.add(Dropout(0.15))
+                # self.model.add(BatchNormalization())
+
+                self.model.add(Dense(32, kernel_regularizer=l2(0.01), activation="relu"))
+                # self.model.add(BatchNormalization())
+                # self.model.add(Dropout(0.15))
+
+                if isBinary:
+                    self.model.add(Dense(1, activation='sigmoid'))
+                    self.model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+                else:
+                    self.model.add(Dense(num_classes, activation='softmax'))
+                    self.model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+            else:
+                inputs = Input(shape=(self.X_train.shape[1],))
+                x = inputs
+                
+                x = Dense(512, activation='relu')(x)
+                x = BatchNormalization()(x)
+                x = Dropout(0.3)(x)
+
+                x = self.residual_block(x, 512, dropout_rate=0.3)
+                x = self.residual_block(x, 256, dropout_rate=0.3)
+                x = self.residual_block(x, 128, dropout_rate=0.3)
+                x = self.residual_block(x, 64, dropout_rate=0.2)
+
+                x = Dense(32, activation='relu')(x)
+                x = BatchNormalization()(x)
+                x = Dropout(0.2)(x)
+
+                if isBinary:
+                    outputs = Dense(1, activation='sigmoid')(x)
+                    self.model = tf.keras.Model(inputs=inputs, outputs=outputs)
+                    self.model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+                else:
+                    outputs = Dense(num_classes, activation='softmax')(x)
+                    self.model = tf.keras.Model(inputs=inputs, outputs=outputs)
+                    self.model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
 
     def train_model(self):
         self.epoch_data = []

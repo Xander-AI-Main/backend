@@ -359,20 +359,30 @@ class Interference(APIView):
         if task == "regression":
             helpers = current_model["helpers"]
             scalerUrl = helpers[0]["scaler"]
+            labelUrl = helpers[1]["label_encoder"]
             
             model_name = modelUrl.split('/')[-1]
             scaler_name = scalerUrl.split('/')[-1]
+            label_name = labelUrl.split('/')[-1]
 
             model_path = os.path.join("models", model_name)
             scaler_path = os.path.join("models", scaler_name)  
+            label_path = os.path.join("models", label_name)  
 
             model = load_model_from_local(model_path)
             scaler = load_scaler_from_local(scaler_path)
+            labelEncoder = load_label_encoders_from_local(label_path)
 
             if model and scaler:
-                def preprocess_input(data, scaler, categorical_columns, column_names):
+                def preprocess_input(data, scaler, labelEncoder, categorical_columns, column_names):
                     df = pd.DataFrame([data], columns=column_names)
-                    df = pd.get_dummies(df, columns=categorical_columns)
+                    print(column_names)
+                    print(labelEncoder)
+                    for column, le in labelEncoder.items():
+                        if column in df.columns:
+                            df[column] = le.transform(df[column])
+
+                    # df = pd.get_dummies(df, columns=categorical_columns)
                     df = df.reindex(columns=scaler.feature_names_in_, fill_value=0)
                     data_scaled = scaler.transform(df)
                     return data_scaled
@@ -385,7 +395,7 @@ class Interference(APIView):
                 column_names = df.columns.drop(df.columns[-1])
                 categorical_columns = df.select_dtypes(include=['object']).columns
 
-                data_scaled = preprocess_input(input_data, scaler, categorical_columns, column_names)
+                data_scaled = preprocess_input(input_data, scaler, labelEncoder, categorical_columns, column_names)
                 predictions = make_predictions(model, data_scaled)
 
                 print(predictions)
@@ -412,7 +422,7 @@ class Interference(APIView):
 
             def preprocess_input(data, scaler, label_encoders, column_names):
                 df = pd.DataFrame([data], columns=column_names)
-
+                print(column_names)
                 for column, le in label_encoders.items():
                     if column in df.columns:
                         df[column] = le.transform(df[column])
