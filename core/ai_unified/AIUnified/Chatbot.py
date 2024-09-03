@@ -21,7 +21,7 @@ class Chatbot:
         self.archType = archType
         self.architecture = architecture
         self.hyperparameters = hyperparameters
-        self.api_url = 'http://127.0.0.1:8000/core/store/'
+        self.api_url = 'https://api.xanderco.in/core/store/'
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.stop_words = set(stopwords.words('english'))
         self.json_url = dataset_url

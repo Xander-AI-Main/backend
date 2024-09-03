@@ -785,7 +785,7 @@ class DatasetUploadView(APIView):
                 hyperparameter=hyperparameter
             )
 
-            api_url = 'http://127.0.0.1:8000/core/store/'
+            api_url = 'https://api.xanderco.in/core/store/'
 
             cloud_url = self.upload_to_s3(api_url, file_path)
 

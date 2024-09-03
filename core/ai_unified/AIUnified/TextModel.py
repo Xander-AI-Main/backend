@@ -28,7 +28,7 @@ class TextModel:
         self.archType = archType
         self.architecture = architecture
         self.hyperparameters = hyperparameters
-        self.api_url = 'http://127.0.0.1:8000/core/store/'
+        self.api_url = 'https://api.xanderco.in/core/store/'
         self.epoch_info_queue = queue.Queue()
         self.directory_path = "models"
         self.userId = userId
