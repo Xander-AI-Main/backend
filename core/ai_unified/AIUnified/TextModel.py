@@ -19,7 +19,6 @@ import queue
 import threading
 from tensorflow.keras.callbacks import Callback
 
-
 class TextModel:
     def __init__(self, dataset_url, hasChanged, task, mainType, archType, architecture, hyperparameters, userId):
         self.dataset_url = dataset_url

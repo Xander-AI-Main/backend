@@ -118,3 +118,6 @@ class ResultSerializer(serializers.Serializer):
 
     def to_representation(self, instance):
         return instance
+
+class FileUploadSerializer(serializers.Serializer):
+    file = serializers.FileField()

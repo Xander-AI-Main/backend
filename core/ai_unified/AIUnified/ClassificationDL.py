@@ -66,17 +66,17 @@ class ClassificationDL:
         )
         self.coff = upper_triangle.stack().mean()
 
-        # tree_clf = DecisionTreeClassifier(max_depth=3)
-        # tree_clf.fit(self.X, self.y)
+        tree_clf = DecisionTreeClassifier(max_depth=3)
+        tree_clf.fit(self.X, self.y)
         
-        # feature_importances = tree_clf.feature_importances_
+        feature_importances = tree_clf.feature_importances_
         
-        # mutual_info_scores = mutual_info_classif(self.X, self.y)
+        mutual_info_scores = mutual_info_classif(self.X, self.y)
         
-        # features_to_drop = [i for i in range(len(feature_importances)) 
-        #                     if feature_importances[i] == 0 or mutual_info_scores[i] < 0.01]
+        features_to_drop = [i for i in range(len(feature_importances)) 
+                            if feature_importances[i] == 0 or mutual_info_scores[i] < 0.01]
 
-        # self.X = self.X.drop(self.X.columns[features_to_drop], axis=1)
+        self.X = self.X.drop(self.X.columns[features_to_drop], axis=1)
         print(self.X)
         print(len(list(self.df.values)))
         print("Final Features:", self.X.columns)
@@ -468,7 +468,6 @@ fetch(url, {{
     console.error(`An error occurred: ${{error}}`);
 }});
 '''
-
         model_obj = {
             "modelUrl": model_url if model_url and scaler_url else "",
             "size": os.path.getsize(self.complete_model_path) / (1024 ** 3) if model_url and scaler_url else 0,

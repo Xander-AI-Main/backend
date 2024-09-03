@@ -1,6 +1,6 @@
 from django.urls import path,include
 from rest_framework.routers import DefaultRouter
-from .views import DatasetUploadView, TrainModelView, LoginView, UserUpdateView, Interference
+from .views import DatasetUploadView, TrainModelView, LoginView, UserUpdateView, Interference, UploadFileView
 from . import views
 
 router=DefaultRouter()
@@ -14,4 +14,5 @@ urlpatterns=[
     path('upload/', DatasetUploadView.as_view(), name='dataset-upload'),
     path('train/', TrainModelView.as_view(), name='train_model'),
     path('interference/', Interference.as_view(), name='run_interference'),
+    path('store/', UploadFileView.as_view(), name='run_interference'),
 ]

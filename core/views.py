@@ -11,7 +11,7 @@ from django.core.files.storage import default_storage
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import DatasetUploadSerializer, DatasetSerializer, signupSerializer, TaskSerializer, ResultSerializer, InterferenceSerializer
+from .serializers import DatasetUploadSerializer, DatasetSerializer, signupSerializer, TaskSerializer, ResultSerializer, InterferenceSerializer, FileUploadSerializer
 from .models import Dataset, userSignup
 import requests   
 import json
@@ -668,6 +668,25 @@ def textToNum(finalColumn, x):
         return index
     else:
         return -1  
+
+class UploadFileView(APIView):
+    def post(self, request, *args, **kwargs):
+        serializer = FileUploadSerializer(data=request.data)
+        if serializer.is_valid():
+            uploaded_file = serializer.validated_data['file']
+            file_name = uploaded_file.name
+            base = f"https://xanderco-storage.s3.ap-south-1.amazonaws.com/{file_name}"
+            
+            url = f'https://yzeywwy3b6.execute-api.ap-south-1.amazonaws.com/deb/xanderco-storage/{file_name}'
+
+            response = requests.put(url, data=uploaded_file.read())
+
+            if response.status_code == 200:
+                return Response({'file_url': base}, status=201)
+            else:
+                return Response({'error': 'File upload failed', 'details': response.text}, status=response.status_code)
+        else:
+            return Response(serializer.errors, status=400)
 
 class DatasetUploadView(APIView):
     serializer_class = DatasetUploadSerializer
