@@ -26,8 +26,7 @@ class ClassificationDL:
         self.archType = archType
         self.architecture = architecture
         self.hyperparameters = hyperparameters
-        self.api_url = 'https://s3-api-uat.idesign.market/api/upload'
-        self.bucket_name = 'idesign-quotation'
+        self.api_url = 'https://api.xanderco.in/core/store/'
         self.model_path = f'bestmodel{str(uuid.uuid4())}.h5'
         self.scaler_path = f'scaler{str(uuid.uuid4())}.pkl'
         self.label_encoder_path = f'label_encoder{str(uuid.uuid4())}.pkl'
@@ -43,6 +42,7 @@ class ClassificationDL:
 
     def load_data(self):
         self.df = pd.read_csv(self.dataset_url)
+        print(self.df)
         self.df = self.df.dropna()
         self.df = self.df.iloc[:25000]
         columns_to_drop = [col for col in self.df.columns if 'id' in col.lower()]
@@ -60,26 +60,26 @@ class ClassificationDL:
         if self.y.dtype == object:
             self.y = LabelEncoder().fit_transform(self.y)
 
-        correlation_matrix = self.X.corr().abs()
-        upper_triangle = correlation_matrix.where(
-            pd.np.triu(pd.np.ones(correlation_matrix.shape), k=1).astype(pd.np.bool_)
-        )
-        self.coff = upper_triangle.stack().mean()
+        # correlation_matrix = self.X.corr().abs()
+        # upper_triangle = correlation_matrix.where(
+        #     pd.np.triu(pd.np.ones(correlation_matrix.shape), k=1).astype(pd.np.bool_)
+        # )
+        # self.coff = upper_triangle.stack().mean()
 
-        tree_clf = DecisionTreeClassifier(max_depth=3)
-        tree_clf.fit(self.X, self.y)
+        # tree_clf = DecisionTreeClassifier(max_depth=3)
+        # tree_clf.fit(self.X, self.y)
         
-        feature_importances = tree_clf.feature_importances_
+        # feature_importances = tree_clf.feature_importances_
         
-        mutual_info_scores = mutual_info_classif(self.X, self.y)
+        # mutual_info_scores = mutual_info_classif(self.X, self.y)
         
-        features_to_drop = [i for i in range(len(feature_importances)) 
-                            if feature_importances[i] == 0 or mutual_info_scores[i] < 0.01]
+        # features_to_drop = [i for i in range(len(feature_importances)) 
+        #                     if feature_importances[i] == 0 or mutual_info_scores[i] < 0.01]
 
-        self.X = self.X.drop(self.X.columns[features_to_drop], axis=1)
-        print(self.X)
-        print(len(list(self.df.values)))
-        print("Final Features:", self.X.columns)
+        # self.X = self.X.drop(self.X.columns[features_to_drop], axis=1)
+        # print(self.X)
+        # print(len(list(self.df.values)))
+        # print("Final Features:", self.X.columns)
 
 
     def preprocess_data(self):
@@ -247,14 +247,12 @@ class ClassificationDL:
 
     def upload_files_to_api(self):
         try:
-            files = {
-                'bucketName': (None, self.bucket_name),
-                'files': open(self.complete_model_path, 'rb')
+            file = {
+                'file': open(self.complete_model_path, 'rb')
             }
-            response_model = requests.put(self.api_url, files=files)
+            response_model = requests.post(self.api_url, files=file)
             response_data_model = response_model.json()
-            model_url = response_data_model.get('locations', [])[
-                0] if response_model.status_code == 200 else None
+            model_url = response_data_model.get('file_url')
 
             if model_url:
                 print(f"Model uploaded successfully. URL: {model_url}")
@@ -263,15 +261,13 @@ class ClassificationDL:
                     f"Failed to upload model. Error: {response_data_model.get('error')}")
                 return None, None
 
-            files = {
-                'bucketName': (None, self.bucket_name),
-                'files': open(self.complete_scaler_path, 'rb')
+            file = {
+                'file': open(self.complete_scaler_path, 'rb')
             }
 
-            response_scaler = requests.put(self.api_url, files=files)
+            response_scaler = requests.post(self.api_url, files=file)
             response_data_scaler = response_scaler.json()
-            scaler_url = response_data_scaler.get(
-                'locations', [])[0] if response_scaler.status_code == 200 else None
+            scaler_url = response_data_scaler.get('file_url')
 
             if scaler_url:
                 print(f"Scaler uploaded successfully. URL: {scaler_url}")
@@ -280,22 +276,21 @@ class ClassificationDL:
                     f"Failed to upload scaler. Error: {response_data_scaler.get('error')}")
                 return model_url, None
             
-            files = {
-                'bucketName': (None, self.bucket_name),
-                'files': open(self.complete_label_encoder_path, 'rb')
+            file = {
+                'file': open(self.complete_label_encoder_path, 'rb')
             }
 
-            response_label = requests.put(self.api_url, files=files)
+            response_label = requests.post(self.api_url, files=file)
             response_data_label = response_label.json()
-            label_url = response_data_label.get(
-                'locations', [])[0] if response_label.status_code == 200 else None
+            label_url = response_data_label.get('file_url')
 
             if label_url:
                 print(f"label uploaded successfully. URL: {label_url}")
             else:
                 print(
                     f"Failed to upload label. Error: {response_data_label.get('error')}")
-
+            
+            print(model_url, scaler_url, label_url)
             return model_url, scaler_url, label_url
 
         except requests.exceptions.RequestException as e:

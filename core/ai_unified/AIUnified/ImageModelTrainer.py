@@ -22,8 +22,7 @@ class ImageModelTrainer:
         self.architecture = architecture
         self.hyperparameters = hyperparameters
         self.epoch_info_queue = queue.Queue()
-        self.api_url = 'https://s3-api-uat.idesign.market/api/upload'
-        self.bucket_name = 'idesign-quotation'
+        self.api_url = 'https://api.xanderco.in/core/store/'
         self.data_dir = f"extracted_files{str(uuid.uuid4())}"
         self.img_height = 120
         self.img_width = 120
@@ -158,14 +157,12 @@ class ImageModelTrainer:
 
     def upload_files_to_api(self):
         try:
-            files = {
-                'bucketName': (None, self.bucket_name),
-                'files': open(self.complete_path, 'rb')
+            file = {
+                'file': open(self.complete_path, 'rb')
             }
-            response_model = requests.put(self.api_url, files=files)
+            response_model = requests.post(self.api_url, files=file)
             response_data_model = response_model.json()
-            model_url = response_data_model.get('locations', [])[
-                0] if response_model.status_code == 200 else None
+            model_url = response_data_model.get('file_url')
 
             if model_url:
                 print(f"Model uploaded successfully. URL: {model_url}")

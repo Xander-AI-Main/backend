@@ -28,8 +28,7 @@ class TextModel:
         self.archType = archType
         self.architecture = architecture
         self.hyperparameters = hyperparameters
-        self.api_url = 'https://s3-api-uat.idesign.market/api/upload'
-        self.bucket_name = 'idesign-quotation'
+        self.api_url = 'http://127.0.0.1:8000/core/store/'
         self.epoch_info_queue = queue.Queue()
         self.directory_path = "models"
         self.userId = userId
@@ -193,14 +192,14 @@ class TextModel:
 
     def upload_files_to_api(self):
         try:
-            files = {
-                'bucketName': (None, self.bucket_name),
-                'files': open(self.model_path, 'rb')
+            file = {
+                'file': open(self.model_path, 'rb')
             }
-            response_model = requests.put(self.api_url, files=files)
+            response_model = requests.post(self.api_url, files=file)
             response_data_model = response_model.json()
-            model_url = response_data_model.get('locations', [])[
-                0] if response_model.status_code == 200 else None
+            print("-----------")
+            print(response_data_model)
+            model_url = response_data_model.get('file_url')
 
             if model_url:
                 print(f"Model uploaded successfully. URL: {model_url}")
@@ -209,14 +208,14 @@ class TextModel:
                     f"Failed to upload model. Error: {response_data_model.get('error')}")
                 return None, None
 
-            files = {
-                'bucketName': (None, self.bucket_name),
-                'files': open(self.tokenizer_path, 'rb')
+            file = {
+                'file': open(self.tokenizer_path, 'rb')
             }
-            response_tokenizer = requests.put(self.api_url, files=files)
+            response_tokenizer = requests.post(self.api_url, files=file)
             response_data_tokenizer = response_tokenizer.json()
-            tokenizer_url = response_data_tokenizer.get(
-                'locations', [])[0] if response_tokenizer.status_code == 200 else None
+            print("-----------")
+            print(response_data_tokenizer)
+            tokenizer_url = response_data_tokenizer.get('file_url')
 
             if tokenizer_url:
                 print(f"Tokenizer uploaded successfully. URL: {tokenizer_url}")
@@ -225,14 +224,14 @@ class TextModel:
                     f"Failed to upload tokenizer. Error: {response_data_tokenizer.get('error')}")
                 return model_url, None
 
-            files = {
-                'bucketName': (None, self.bucket_name),
-                'files': open(self.label_encoder_path, 'rb')
+            file = {
+                'file': open(self.label_encoder_path, 'rb')
             }
-            response_label_encoder = requests.put(self.api_url, files=files)
+            response_label_encoder = requests.post(self.api_url, files=file)
             response_data_label_encoder = response_label_encoder.json()
-            label_encoder_url = response_data_label_encoder.get(
-                'locations', [])[0] if response_label_encoder.status_code == 200 else None
+            print("-----------")
+            print(response_label_encoder)
+            label_encoder_url = response_data_label_encoder.get('file_url')
 
             if label_encoder_url:
                 print(

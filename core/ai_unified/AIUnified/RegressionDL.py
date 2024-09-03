@@ -36,8 +36,7 @@ class RegressionDL:
         self.complete_model_path = os.path.join(self.directory_path, self.model_file_path)
         self.complete_scaler_path = os.path.join(self.directory_path, self.scaler_file_path)
         self.complete_label_encoder_path = os.path.join(self.directory_path, self.label_encoder_path)
-        self.api_url = 'https://s3-api-uat.idesign.market/api/upload'
-        self.bucket_name = 'idesign-quotation'
+        self.api_url = 'https://api.xanderco.in/core/store/'
         self.epoch_info_queue = queue.Queue()
         self.userId = userId
 
@@ -180,14 +179,12 @@ class RegressionDL:
 
     def upload_files_to_api(self):
         try:
-            files = {
-                'bucketName': (None, self.bucket_name),
-                'files': open(self.complete_model_path, 'rb')
+            file = {
+                'file': open(self.complete_model_path, 'rb')
             }
-            response_model = requests.put(self.api_url, files=files)
+            response_model = requests.post(self.api_url, files=file)
             response_data_model = response_model.json()
-            model_url = response_data_model.get('locations', [])[
-                0] if response_model.status_code == 200 else None
+            model_url = response_data_model.get('file_url')
 
             if model_url:
                 print(f"Model uploaded successfully. URL: {model_url}")
@@ -196,14 +193,12 @@ class RegressionDL:
                     f"Failed to upload model. Error: {response_data_model.get('error')}")
                 return None, None
 
-            files = {
-                'bucketName': (None, self.bucket_name),
-                'files': open(self.complete_scaler_path, 'rb')
+            file = {
+                'file': open(self.complete_scaler_path, 'rb')
             }
-            response_scaler = requests.put(self.api_url, files=files)
+            response_scaler = requests.post(self.api_url, files=file)
             response_data_scaler = response_scaler.json()
-            scaler_url = response_data_scaler.get(
-                'locations', [])[0] if response_scaler.status_code == 200 else None
+            scaler_url = response_data_scaler.get('file_url')
 
             if scaler_url:
                 print(f"Scaler uploaded successfully. URL: {scaler_url}")
@@ -212,14 +207,12 @@ class RegressionDL:
                     f"Failed to upload scaler. Error: {response_data_scaler.get('error')}")
                 return model_url, None
 
-            files = {
-                'bucketName': (None, self.bucket_name),
-                'files': open(self.complete_label_encoder_path, 'rb')
+            file = {
+                'file': open(self.complete_label_encoder_path, 'rb')
             }
-            response_label = requests.put(self.api_url, files=files)
+            response_label = requests.post(self.api_url, files=file)
             response_data_label = response_label.json()
-            label_url = response_data_label.get(
-                'locations', [])[0] if response_label.status_code == 200 else None
+            label_url = response_data_label.get('file_url')
 
             if label_url:
                 print(f"label uploaded successfully. URL: {label_url}")

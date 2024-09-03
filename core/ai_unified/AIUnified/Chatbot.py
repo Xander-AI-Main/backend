@@ -21,8 +21,7 @@ class Chatbot:
         self.archType = archType
         self.architecture = architecture
         self.hyperparameters = hyperparameters
-        self.api_url = 'https://s3-api-uat.idesign.market/api/upload'
-        self.bucket_name = 'idesign-quotation'
+        self.api_url = 'http://127.0.0.1:8000/core/store/'
         self.model = SentenceTransformer('all-MiniLM-L6-v2')
         self.stop_words = set(stopwords.words('english'))
         self.json_url = dataset_url
@@ -73,17 +72,16 @@ class Chatbot:
         files_to_upload = [self.que_complete_path, self.ans_complete_path]
 
         for file_path in files_to_upload:
-            files = {
-                'bucketName': (None, self.bucket_name),
-                'files': open(file_path, 'rb')
+            file = {
+                'file': open(file_path, 'rb')
             }
 
             try:
-                response = requests.put(self.api_url, files=files)
+                response = requests.post(self.api_url, files=file)
                 response_data = response.json()
-
-                if response.status_code == 200:
-                    pdf_info = response_data.get('locations', [])[0]
+                print(response_data)
+                if response.status_code == 201 or response.status_code == 200:
+                    pdf_info = response_data.get('file_url')
                     initial_url = pdf_info
                     uploaded_urls[file_path] = initial_url
                     print(f"File {file_path} uploaded successfully.")
@@ -107,7 +105,7 @@ class Chatbot:
         torch.save(question_embeddings,  self.que_complete_path)
         torch.save(answer_embeddings, self.ans_complete_path)
 
-        model_path = "https://idesign-quotation.s3.ap-south-1.amazonaws.com/NO_COMPANYNAME/sentence_transformer_model.zip"
+        model_path = "https://xanderco-storage.s3.ap-south-1.amazonaws.com/sentence_transformer_model.zip"
 
         uploaded_urls = self.upload_files_to_s3()
 
