@@ -11,7 +11,7 @@ def returnArch (data, task, mainType, archType):
             return i["architecture"], i["hyperparameters"]
         
 if __name__ == "__main__":
-    dataset_url = "Sonar.csv" # will be sent by user
+    dataset_url = "Titanic-Dataset.csv" # will be sent by user
     hasChanged = False # will be sent by user
     task = "classification" # will be sent by user
     mainType = "DL" # will be sent by user

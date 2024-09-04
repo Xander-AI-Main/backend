@@ -126,7 +126,36 @@ class ClassificationDL:
                 elif arch['layer'] == "Dropout":
                     self.model.add(Dropout(arch['ratio']))
         else:
-            if len(list(self.df.values)) <= 5000:
+            if len(list(self.df.values)) <= 2000:
+                self.model = tf.keras.Sequential()
+                self.model.add(Dense(512, kernel_regularizer=l2(0.001), input_shape=(self.X_train.shape[1],), activation="relu"))
+                self.model.add(Dropout(0.3))
+                self.model.add(BatchNormalization())
+
+                self.model.add(Dense(256, kernel_regularizer=l2(0.001), activation="relu"))
+                self.model.add(Dropout(0.3))
+                self.model.add(BatchNormalization())
+
+                self.model.add(Dense(128, kernel_regularizer=l2(0.001), activation="relu"))
+                self.model.add(Dropout(0.25))
+                # self.model.add(BatchNormalization())
+
+                self.model.add(Dense(64, kernel_regularizer=l2(0.001), activation="relu"))
+                self.model.add(Dropout(0.15))
+                # self.model.add(BatchNormalization())
+
+                self.model.add(Dense(32, kernel_regularizer=l2(0.001), activation="relu"))
+                # self.model.add(BatchNormalization())
+                # self.model.add(Dropout(0.15))
+
+                if isBinary:
+                    self.model.add(Dense(1, activation='sigmoid'))
+                    self.model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+                else:
+                    self.model.add(Dense(num_classes, activation='softmax'))
+                    self.model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+
+            elif len(list(self.df.values)) <= 5000:
                 self.model = tf.keras.Sequential()
                 self.model.add(Dense(512, kernel_regularizer=l2(0.01), input_shape=(self.X_train.shape[1],), activation="relu"))
                 self.model.add(Dropout(0.3))
@@ -309,9 +338,12 @@ class ClassificationDL:
         training_thread.join()
 
         # self.evaluate_model()
+        # model_url = ""
+        # scaler_url = ""
+        # label_url = ""
         
         model_url, scaler_url, label_url = self.upload_files_to_api()
-
+        
         _id = str(uuid.uuid4())
 
         df = pd.read_csv(self.dataset_url)

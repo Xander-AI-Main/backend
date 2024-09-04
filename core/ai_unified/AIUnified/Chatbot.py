@@ -264,7 +264,7 @@ fetch(url, {{
 '''
         
         model_obj = {
-            "modelUrl": "https://idesign-quotation.s3.ap-south-1.amazonaws.com/NO_COMPANYNAME/sentence_transformer_model.zip",
+            "modelUrl": model_path,
             "helpers": [{"question_embeddings": uploaded_urls.get(self.que_complete_path, "")}, {"answer_embeddings": uploaded_urls.get(self.ans_complete_path, "")}],
             "id": _id,
             "architecture": "Sentence Transformers",
