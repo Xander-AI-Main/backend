@@ -4,8 +4,8 @@ import json
 
 url = "http://127.0.0.1:8000/core/interference/" 
 data = {
-    "data": [37764, 25, 'Female', 'Europe', 'Action', 6.241870965810384, 0, 'Easy', 15, 160, 79, 45],
-    "modelId": 'b13dde0a-07b0-4974-9e37-9676f33eb26c',
+    "data": [32, 'male', 28.12, 4, 'no', 'northwest'],
+    "modelId": '1c42f620-3d3f-4c26-a0a6-356cbac35c73',
     "userId": '55',
 }
 
