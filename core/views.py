@@ -245,7 +245,6 @@ class signupViewset(viewsets.ModelViewSet):
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-
 def returnArch(data, task, mainType, archType):
     current_task = arch_data[task]
     for i in current_task:
@@ -272,6 +271,13 @@ class LoginView(APIView):
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+def download_file(url, local_path):
+    response = requests.get(url)
+    if response.status_code == 200:
+        with open(local_path, 'wb') as f:
+            f.write(response.content)
+    else:
+        print("Failed to download", url, ":", response.status_code)
 
 def load_model_from_local(path):
     try:
@@ -281,7 +287,6 @@ def load_model_from_local(path):
         print("Error loading model from path: " + str(e))
         return None
 
-
 def load_scaler_from_local(path):
     try:
         scaler = joblib.load(path)
@@ -290,15 +295,13 @@ def load_scaler_from_local(path):
         print("Error loading scaler from path: " + str(e))
         return None
 
-
 def load_label_encoders_from_local(path):
     try:
         label_encoder = joblib.load(path)
         return label_encoder
     except Exception as e:
-        print("Error loading scaler from path: " + str(e))
+        print("Error loading label encoders from path: " + str(e))
         return None
-
 
 def load_tokenizer(path):
     try:
@@ -309,7 +312,6 @@ def load_tokenizer(path):
         print(f"Error loading tokenizer: {e}")
         return None
 
-
 def load_label_encoder(path):
     try:
         with open(path, 'rb') as f:
@@ -318,7 +320,6 @@ def load_label_encoder(path):
     except Exception as e:
         print(f"Error loading label encoder: {e}")
         return None
-
 
 def preprocess_text(text):
     text = text.lower()
@@ -329,14 +330,11 @@ def preprocess_text(text):
     tokens = [word for word in tokens if word not in stop_words]
     return ' '.join(tokens)
 
-
 def get_answer(question, model, question_embeddings, answer_embeddings, answers):
     processed_question = preprocess_text(question)
-    question_embedding = model.encode(
-        processed_question, convert_to_tensor=True)
+    question_embedding = model.encode(processed_question, convert_to_tensor=True)
 
-    similarities = util.pytorch_cos_sim(
-        question_embedding, question_embeddings)[0]
+    similarities = util.pytorch_cos_sim(question_embedding, question_embeddings)[0]
     similarity, index = similarities.max(), similarities.argmax()
     similarity_percentage = similarity.item() * 100
 
@@ -345,11 +343,9 @@ def get_answer(question, model, question_embeddings, answer_embeddings, answers)
     else:
         return "Sorry, I didn't understand that!", similarity_percentage
 
-
 def numToText(finalColumn, x):
     arr = finalColumn.unique()
     return arr[x]
-
 
 class Interference(APIView):
     def post(self, request):

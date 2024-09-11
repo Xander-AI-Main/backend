@@ -42,11 +42,26 @@ class ClassificationDL:
 
     def load_data(self):
         self.df = pd.read_csv(self.dataset_url)
-        print(self.df)
+        
         self.df = self.df.dropna()
+        print(self.df)
+        
         self.df = self.df.iloc[:25000]
-        columns_to_drop = [col for col in self.df.columns if 'id' in col.lower()]
-        self.df = self.df.drop(columns=columns_to_drop)
+        
+        # columns_to_drop = [col for col in self.df.columns if 'id' in col.lower()]
+        # self.df = self.df.drop(columns=columns_to_drop)
+
+        # print(columns_to_drop)
+
+        def contains_url(column):
+            if column.dtype == 'object':
+                return column.str.contains(r'http[s]?://', na=False).any()
+            return False
+
+        url_columns = [col for col in self.df.columns if contains_url(self.df[col])]
+        print(url_columns)
+
+        self.df = self.df.drop(columns=url_columns)
         
         self.X = self.df.iloc[:, :-1]
         self.y = self.df.iloc[:, -1]
@@ -58,28 +73,16 @@ class ClassificationDL:
             self.label_encoders[column] = le
 
         if self.y.dtype == object:
-            self.y = LabelEncoder().fit_transform(self.y)
-
-        # correlation_matrix = self.X.corr().abs()
-        # upper_triangle = correlation_matrix.where(
-        #     pd.np.triu(pd.np.ones(correlation_matrix.shape), k=1).astype(pd.np.bool_)
-        # )
-        # self.coff = upper_triangle.stack().mean()
-
-        # tree_clf = DecisionTreeClassifier(max_depth=3)
-        # tree_clf.fit(self.X, self.y)
+            le = LabelEncoder()
+            self.y = le.fit_transform(self.y)
+            self.label_encoders['target'] = le
         
-        # feature_importances = tree_clf.feature_importances_
-        
-        # mutual_info_scores = mutual_info_classif(self.X, self.y)
-        
-        # features_to_drop = [i for i in range(len(feature_importances)) 
-        #                     if feature_importances[i] == 0 or mutual_info_scores[i] < 0.01]
+        print(self.X, self.y)
 
-        # self.X = self.X.drop(self.X.columns[features_to_drop], axis=1)
-        # print(self.X)
-        # print(len(list(self.df.values)))
-        # print("Final Features:", self.X.columns)
+        # Ensure labels start from 0 and are continuous
+        unique_labels = np.unique(self.y)
+        label_map = {label: i for i, label in enumerate(unique_labels)}
+        self.y = np.array([label_map[label] for label in self.y])
 
 
     def preprocess_data(self):
