@@ -2,11 +2,12 @@
 import requests
 import json
 
-url = "http://127.0.0.1:8000/core/interference/" 
+url = "https://api.xanderco.in/core/interference/" 
+
 data = {
-    "data": [32, 'male', 28.12, 4, 'no', 'northwest'],
-    "modelId": '1c42f620-3d3f-4c26-a0a6-356cbac35c73',
-    "userId": '55',
+    "data": [2.0, 2.0, 29.0, 1.0, 3.0, 44.0, 2.0, 9.0, 0.0, 1.0, 6.0],
+    "modelId": '78467fa5-d6d6-4f0e-b466-9fb067bb000a',
+    "userId": '41',
 }
 
 try:

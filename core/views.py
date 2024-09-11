@@ -62,7 +62,7 @@ import torch
 import chardet
 from django.utils import timezone
 import boto3
-
+from botocore.config import Config
 
 def returnArch(data, task, mainType, archType):
     current_task = data[task]
@@ -708,11 +708,11 @@ class UploadFileView(APIView):
             file_name = uploaded_file.name
             name = uploaded_file.name.split(
                 '.')[0] + str(uuid.uuid4()) + '.' + uploaded_file.name.split('.')[1]
-            base = f"https://xanderco-storage.s3.ap-south-1.amazonaws.com/{file_name}"
+            base = f"https://xanderco-storage.s3-accelerate.amazonaws.com/{file_name}"
             file_path = default_storage.save(name, uploaded_file)
             s3_client = boto3.client('s3', aws_access_key_id="AKIA3F3GRYWMGLSXHLVJ",
                                      aws_secret_access_key="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",
-                                     region_name='ap-south-1')
+                                     region_name='ap-south-1', config=Config(s3={'use_accelerate_endpoint': True}))
 
             pre_signed_url = s3_client.generate_presigned_url(
                 'put_object',
@@ -736,7 +736,6 @@ class UploadFileView(APIView):
         #         return Response({'error': 'File upload failed', 'details': response.text}, status=response.status_code)
         else:
             return Response(serializer.errors, status=400)
-
 
 class DatasetUploadView(APIView):
     serializer_class = DatasetUploadSerializer
