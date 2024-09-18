@@ -7,6 +7,9 @@ import json
 from datetime import datetime, timedelta
 from django.utils import timezone
 
+def default_expired_date():
+    return timezone.now() + timedelta(days=30)
+
 current_date = datetime.now()
 future_date = current_date + timedelta(days=30)
 
@@ -28,7 +31,7 @@ class userSignup (AbstractUser):
     team=models.JSONField(default=list)
     dummy=models.BooleanField(default=False)
     purchase_date = models.DateTimeField(default=timezone.now)
-    expired_date = models.DateTimeField(default=lambda: timezone.now() + timezone.timedelta(days=30))
+    expired_date = models.DateTimeField(default=default_expired_date)
     has_expired = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
