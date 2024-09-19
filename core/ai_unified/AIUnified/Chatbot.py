@@ -209,7 +209,7 @@ print(f"Similarity Percentage: {{similarity_percentage:.2f}}%")
 import requests
 import json
 
-url = "https://api.xanderco.in/core/interference/" 
+url = "https://apiv2.xanderco.in/core/interference/" 
 
 data = {{
     "data": "Your input text",
@@ -232,7 +232,7 @@ except requests.exceptions.RequestException as e:
 '''
 
         api_code_js = f'''
-const url = "https://api.xanderco.in/core/interference/";
+const url = "https://apiv2.xanderco.in/core/interference/";
 
 const data = {{
     data: "Your text here",

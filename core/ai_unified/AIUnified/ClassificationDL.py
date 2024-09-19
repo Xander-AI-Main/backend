@@ -350,6 +350,7 @@ class ClassificationDL:
         _id = str(uuid.uuid4())
 
         df = pd.read_csv(self.dataset_url)
+        df = df.dropna()
         data = df.iloc[int(random.random() *
                            len(df.values.tolist()))].tolist()[0:-1]
         formatted_dat = [f"'{item}'" if isinstance(
@@ -445,7 +446,7 @@ if __name__ == "__main__":
 import requests
 import json
 
-url = "https://api.xanderco.in/core/interference/" 
+url = "https://apiv2.xanderco.in/core/interference/" 
 
 data = {{
     "data": [{', '.join(formatted_dat)}],
@@ -468,7 +469,7 @@ except requests.exceptions.RequestException as e:
 '''
         
         api_code_js = f'''
-const url = "https://api.xanderco.in/core/interference/";
+const url = "https://apiv2.xanderco.in/core/interference/";
 
 const data = {{
     data: [{', '.join(formatted_dat)}],
