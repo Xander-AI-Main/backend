@@ -338,7 +338,7 @@ else:
 import requests
 import json
 
-url = "https://apiv2.xanderco.in/core/interference/" 
+url = "https://apiv3.xanderco.in/core/interference/" 
 
 data = {{
     "data": [{', '.join(formatted_dat)}],
@@ -361,7 +361,7 @@ except requests.exceptions.RequestException as e:
 '''
         
         api_code_js = f'''
-const url = "https://apiv2.xanderco.in/core/interference/";
+const url = "https://apiv3.xanderco.in/core/interference/";
 
 const data = {{
     data: [{', '.join(formatted_dat)}],

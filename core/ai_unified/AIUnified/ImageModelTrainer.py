@@ -255,7 +255,7 @@ else:
         api_code_python = f''' 
 import requests
 
-url = "https://apiv2.xanderco.in/core/interference/"
+url = "https://apiv3.xanderco.in/core/interference/"
 
 data = {{
     'userId': '{self.userId}',
@@ -278,7 +278,7 @@ else:
         '''
 
         api_code_js = f'''
-const url = "https://apiv2.xanderco.in/core/interference/";
+const url = "https://apiv3.xanderco.in/core/interference/";
 
 const data = new FormData();
 data.append('userId', '{self.userId}');
