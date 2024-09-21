@@ -22,7 +22,7 @@ class ImageModelTrainer:
         self.architecture = architecture
         self.hyperparameters = hyperparameters
         self.epoch_info_queue = queue.Queue()
-        self.api_url = 'https://api.xanderco.in/core/store/'
+        self.api_url = 'https://apiv3.xanderco.in/core/store/'
         self.data_dir = f"extracted_files{str(uuid.uuid4())}"
         self.img_height = 120
         self.img_width = 120

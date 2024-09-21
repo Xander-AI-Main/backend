@@ -1,6 +1,6 @@
 from django.urls import path,include
 from rest_framework.routers import DefaultRouter
-from .views import DatasetUploadView, TrainModelView, LoginView, UserUpdateView, Interference, UploadFileView
+from .views import TrainModelView, LoginView, UserUpdateView, Interference, UploadFileView, DatasetUploadView
 from . import views
 
 router=DefaultRouter()

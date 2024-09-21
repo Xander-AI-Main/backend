@@ -1,5 +1,5 @@
 
-const url = "https://api.xanderco.in/core/interference/";
+const url = "https://apiv3.xanderco.in/core/interference/";
 
 const data = {
     data: ['4.7', '8.0', '64.0', '6.1', '35.0', '12.0', '3800.0'],

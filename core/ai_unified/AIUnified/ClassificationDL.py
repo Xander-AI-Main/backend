@@ -26,7 +26,7 @@ class ClassificationDL:
         self.archType = archType
         self.architecture = architecture
         self.hyperparameters = hyperparameters
-        self.api_url = 'https://api.xanderco.in/core/store/'
+        self.api_url = 'https://apiv3.xanderco.in/core/store/'
         self.model_path = f'bestmodel{str(uuid.uuid4())}.h5'
         self.scaler_path = f'scaler{str(uuid.uuid4())}.pkl'
         self.label_encoder_path = f'label_encoder{str(uuid.uuid4())}.pkl'

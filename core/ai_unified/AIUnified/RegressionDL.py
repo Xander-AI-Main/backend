@@ -36,7 +36,7 @@ class RegressionDL:
         self.complete_model_path = os.path.join(self.directory_path, self.model_file_path)
         self.complete_scaler_path = os.path.join(self.directory_path, self.scaler_file_path)
         self.complete_label_encoder_path = os.path.join(self.directory_path, self.label_encoder_path)
-        self.api_url = 'https://api.xanderco.in/core/store/'
+        self.api_url = 'https://apiv3.xanderco.in/core/store/'
         self.epoch_info_queue = queue.Queue()
         self.userId = userId
 
