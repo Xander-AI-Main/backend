@@ -99,7 +99,6 @@ fetch(url, {{
     console.error(`An error occurred: ${{error}}`);
 }});
 '''
-
         model_obj = {
             "modelUrl": "",
             "helpers": [],
@@ -117,5 +116,3 @@ fetch(url, {{
         }
 
         return model_obj
-
-

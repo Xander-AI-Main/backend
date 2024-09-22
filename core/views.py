@@ -584,7 +584,6 @@ def textToNum(finalColumn, x):
     else:
         return -1
 
-
 class UploadFileView(APIView):
     def post(self, request, *args, **kwargs):
         serializer = FileUploadSerializer(data=request.data)
@@ -602,7 +601,7 @@ class UploadFileView(APIView):
             pre_signed_url = s3_client.generate_presigned_url(
                 'put_object',
                 Params={'Bucket': 'xanderco-storage', 'Key': file_name},
-                ExpiresIn=3600,
+                ExpiresIn=7200,
                 HttpMethod='PUT'
             )
             with open(file_path, 'rb') as f:
@@ -632,7 +631,7 @@ class DatasetUploadView(APIView):
             name = uploaded_file.name.split(
                 '.')[0] + str(uuid.uuid4()) + '.' + uploaded_file.name.split('.')[1]
             userId = serializer.validated_data['userId']
-
+            name = name.replace(" ", "")
             pdf_dir = 'pdfs'
             if not os.path.isdir(pdf_dir):
                 os.makedirs(pdf_dir)
