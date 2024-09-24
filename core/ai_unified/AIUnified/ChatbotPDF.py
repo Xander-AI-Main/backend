@@ -42,31 +42,33 @@ class ChatbotPDF:
         # print(response.text)
         interference_code = ""
 
-        api_code_python = f'''
-import requests
-import json
+#         api_code_python = f'''
+# import requests
+# import json
 
-url = "https://apiv3.xanderco.in/core/interference/" 
+# url = "https://apiv3.xanderco.in/core/interference/" 
 
-data = {{
-    "data": "Your input text",
-    "modelId": '{self._id}',
-    "userId": '{self.userId}',
-}}
+# data = {{
+#     "data": "Your input text",
+#     "modelId": '{self._id}',
+#     "userId": '{self.userId}',
+# }}
 
-try:
-    response = requests.post(url, json=data)
+# try:
+#     response = requests.post(url, json=data)
 
-    if response.status_code == 200:
-        # Print the response JSON
-        print("Response:")
-        print(json.dumps(response.json(), indent=2))
-    else:
-        print(f"Error: {{response.status_code}}")
-        print(response.text)
-except requests.exceptions.RequestException as e:
-    print(f"An error occurred: {{e}}")
-'''
+#     if response.status_code == 200:
+#         # Print the response JSON
+#         print("Response:")
+#         print(json.dumps(response.json(), indent=2))
+#     else:
+#         print(f"Error: {{response.status_code}}")
+#         print(response.text)
+# except requests.exceptions.RequestException as e:
+#     print(f"An error occurred: {{e}}")
+# '''
+
+        api_code_python = f'''<script src="https://chatbot.xanderco.in/chatbot-loader.js?modelId={self._id}&userId={self.userId}"></script>'''
 
         api_code_js = f'''
 const url = "https://apiv3.xanderco.in/core/interference/";
