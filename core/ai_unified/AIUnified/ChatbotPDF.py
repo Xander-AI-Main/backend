@@ -68,7 +68,9 @@ class ChatbotPDF:
 #     print(f"An error occurred: {{e}}")
 # '''
 
-        api_code_python = f'''<script src="https://chatbot.xanderco.in/chatbot-loader.js?modelId={self._id}&userId={self.userId}"></script>'''
+        api_code_python = f'''
+        <script src="https://chatbot.xanderco.in/chatbot-loader.js?modelId={self._id}&userId={self.userId}"></script>
+        '''
 
         api_code_js = f'''
 const url = "https://apiv3.xanderco.in/core/interference/";
