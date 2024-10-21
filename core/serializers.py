@@ -93,6 +93,9 @@ class DatasetUploadSerializer(serializers.Serializer):
     file = serializers.FileField()
     userId = serializers.CharField()
 
+class ChatTrainSerializer(serializers.Serializer):
+    query = serializers.CharField()
+
 class DatasetSerializer(serializers.ModelSerializer):
     class Meta:
         model = Dataset

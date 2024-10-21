@@ -11,7 +11,7 @@ from django.core.files.storage import default_storage
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .serializers import DatasetUploadSerializer, DatasetSerializer, signupSerializer, TaskSerializer, ResultSerializer, InterferenceSerializer, FileUploadSerializer
+from .serializers import DatasetUploadSerializer, DatasetSerializer, signupSerializer, TaskSerializer, ResultSerializer, InterferenceSerializer, FileUploadSerializer, ChatTrainSerializer
 from .models import Dataset, userSignup
 import requests
 import json
@@ -66,10 +66,36 @@ import boto3
 from botocore.config import Config
 import fitz
 import google.generativeai as genai
+import kaggle
+import shutil
 
 api_key = "AIzaSyC93XxpL8z7dz4UjNBvECFYaobAOQre0Bk"
 genai.configure(api_key=api_key)
 geminiModel = genai.GenerativeModel("gemini-1.5-flash")
+geminiProModel = genai.GenerativeModel("gemini-pro")
+
+def remove_whitespace(filename):
+    return ''.join(filename.split())
+
+def checkTrain(dirs):
+    for i, j in enumerate(dirs):
+        if j.lower().find('train') != -1:
+            if j.lower().endswith('.csv'):
+                return {"index": i, "isDir": False}
+            else:
+                return {"index": i, "isDir": True}
+    return {"index": -1, "isDir": False}
+
+
+def checkTest(dirs):
+    for i, j in enumerate(dirs):
+        if j.lower().find('test') != -1:
+            if j.lower().endswith('.csv'):
+                return {"index": i, "isDir": False}
+            else:
+                return {"index": i, "isDir": True}
+    return {"index": -1, "isDir": False}
+
 
 def returnArch(data, task, mainType, archType):
     current_task = data[task]
@@ -111,6 +137,7 @@ class signupViewset(viewsets.ModelViewSet):
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 def returnArch(data, task, mainType, archType):
     current_task = arch_data[task]
     for i in current_task:
@@ -137,6 +164,7 @@ class LoginView(APIView):
             })
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 def download_file(url, local_path):
     response = requests.get(url)
     if response.status_code == 200:
@@ -144,6 +172,7 @@ def download_file(url, local_path):
             f.write(response.content)
     else:
         print("Failed to download", url, ":", response.status_code)
+
 
 def load_model_from_local(path):
     try:
@@ -153,6 +182,7 @@ def load_model_from_local(path):
         print("Error loading model from path: " + str(e))
         return None
 
+
 def load_scaler_from_local(path):
     try:
         scaler = joblib.load(path)
@@ -161,6 +191,7 @@ def load_scaler_from_local(path):
         print("Error loading scaler from path: " + str(e))
         return None
 
+
 def load_label_encoders_from_local(path):
     try:
         label_encoder = joblib.load(path)
@@ -168,6 +199,7 @@ def load_label_encoders_from_local(path):
     except Exception as e:
         print("Error loading label encoders from path: " + str(e))
         return None
+
 
 def load_tokenizer(path):
     try:
@@ -178,6 +210,7 @@ def load_tokenizer(path):
         print(f"Error loading tokenizer: {e}")
         return None
 
+
 def load_label_encoder(path):
     try:
         with open(path, 'rb') as f:
@@ -186,6 +219,7 @@ def load_label_encoder(path):
     except Exception as e:
         print(f"Error loading label encoder: {e}")
         return None
+
 
 def preprocess_text(text):
     text = text.lower()
@@ -196,11 +230,14 @@ def preprocess_text(text):
     tokens = [word for word in tokens if word not in stop_words]
     return ' '.join(tokens)
 
+
 def get_answer(question, model, question_embeddings, answer_embeddings, answers):
     processed_question = preprocess_text(question)
-    question_embedding = model.encode(processed_question, convert_to_tensor=True)
+    question_embedding = model.encode(
+        processed_question, convert_to_tensor=True)
 
-    similarities = util.pytorch_cos_sim(question_embedding, question_embeddings)[0]
+    similarities = util.pytorch_cos_sim(
+        question_embedding, question_embeddings)[0]
     similarity, index = similarities.max(), similarities.argmax()
     similarity_percentage = similarity.item() * 100
 
@@ -209,9 +246,11 @@ def get_answer(question, model, question_embeddings, answer_embeddings, answers)
     else:
         return "Sorry, I didn't understand that!", similarity_percentage
 
+
 def numToText(finalColumn, x):
     arr = finalColumn.unique()
     return arr[x]
+
 
 class Interference(APIView):
     def post(self, request):
@@ -451,13 +490,15 @@ class Interference(APIView):
                     text += page.get_text()
 
                 pdf_document.close()
-                response = geminiModel.generate_content(f"Context: {text} Answer the following question in less than 100 words no matter what and if the answer doesnt exist in the context, simple reply with answer not available: {input_data}")
+                response = geminiModel.generate_content(
+                    f"Context: {text} Answer the following question in less than 100 words no matter what and if the answer doesnt exist in the context, simple reply with answer not available: {input_data}")
 
                 return Response({
-                        "answer": response.text,
-                    }, status=status.HTTP_200_OK)
+                    "answer": response.text,
+                }, status=status.HTTP_200_OK)
             else:
-                model_path = os.path.join("models", "sentence_transformer_model")
+                model_path = os.path.join(
+                    "models", "sentence_transformer_model")
                 helpers = current_model["helpers"]
                 question_embeddings = helpers[0]["question_embeddings"]
                 answer_embeddings = helpers[1]["answer_embeddings"]
@@ -470,7 +511,8 @@ class Interference(APIView):
                 answer_embeddings_path = os.path.join(
                     "models", answer_embeddings_name)
 
-                model_path = os.path.join("models", "sentence_transformer_model")
+                model_path = os.path.join(
+                    "models", "sentence_transformer_model")
                 try:
                     model = SentenceTransformer(model_path)
                     question_embeddings = torch.load(question_embeddings_path)
@@ -584,6 +626,7 @@ def textToNum(finalColumn, x):
     else:
         return -1
 
+
 class UploadFileView(APIView):
     def post(self, request, *args, **kwargs):
         serializer = FileUploadSerializer(data=request.data)
@@ -621,6 +664,116 @@ class UploadFileView(APIView):
         else:
             return Response(serializer.errors, status=400)
 
+class ChatTrainView(APIView):
+    serializer_class = ChatTrainSerializer
+    api_url = 'https://apiv3.xanderco.in/core/store/'
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            query = serializer.validated_data['query']
+            context = '''
+            User will provide you with a query describing the AI model they want to build. You will extract following things from the query:
+            1. Type of task, i.e., whether it is Regression, Classification, Image Classification, Textual Classification or Chatbot development.
+            2. What kind of model do they want to build like a credit card fraud detection model, a medical chatbot, an image classifier to detect cats or dogs etc. ? Clearly mention what exactly is model is supposed to do.
+            3. Have they mentioned what type of architecture they want us to use, for example have they mentioned they want us to use Deep Learning or LSTM layers or maybe SVM or XGBoost etc.? If not mentioned return None
+            Just mention the answers separated by comma and no need for numbering.
+            '''
+            print(query)
+            try:
+                response = geminiProModel.generate_content(f"Context: {context} Query: {query}")
+                arr = response.text.split(',')
+
+                requirements = {
+                    "task": arr[0], "model": arr[1].strip(), "architecture": arr[2].strip()
+                }
+
+                datasets = kaggle.api.dataset_list(search=requirements["model"])
+                dataset_refs = [dataset.ref for dataset in datasets]
+
+                dataset_context = f"Model to train: {requirements['model']} Dataset names: {dataset_refs}."
+                dataset_query = f"Now based on the model to train name, return from the dataset names array that dataset name that resonates the most with the name of the model to train. You will always return exactly one single name from the dataset names array. And make sure the name is exactly the same as in the dataset names array, i.e., in the format of username/dataset-name!"
+                
+                dataset_response = geminiProModel.generate_content(
+                    f"Context: {dataset_context} Query: {dataset_query}")
+                selected_ref = dataset_response.text.strip()
+
+                dataset = next((d for d in datasets if d.ref == selected_ref), None)
+
+                if dataset is None:
+                    return Response({
+                        "status": "error",
+                        "message": f"Dataset '{selected_ref}' not found in the search results."
+                    }, status=status.HTTP_404_NOT_FOUND)
+
+                kaggle.api.dataset_download_files(dataset.ref, path='./data', unzip=True)
+                dirs = os.listdir('data')
+
+                file_path = None
+                train_result = checkTrain(dirs)
+                test_result = checkTest(dirs)
+
+                if train_result["index"] != -1:
+                    if not train_result["isDir"]:
+                        file_name = remove_whitespace(dirs[train_result["index"]])
+                        file_path = os.path.join('data', file_name)
+                    else:
+                        train_dir = os.path.join('data', dirs[train_result["index"]])
+                        file_name = remove_whitespace(os.listdir(train_dir)[0])
+                        file_path = os.path.join(train_dir, file_name)
+                elif test_result["index"] != -1:
+                    if not test_result["isDir"]:
+                        file_name = remove_whitespace(dirs[test_result["index"]])
+                        file_path = os.path.join('data', file_name)
+                    else:
+                        test_dir = os.path.join('data', dirs[test_result["index"]])
+                        file_name = remove_whitespace(os.listdir(test_dir)[0])
+                        file_path = os.path.join(test_dir, file_name)
+                else:
+                    file_name = remove_whitespace(dirs[0])
+                    file_path = os.path.join('data', file_name)
+
+                with open(file_path, 'rb') as file_obj:
+                    file = {'file': file_obj}
+                    response_model = requests.post(self.api_url, files=file)
+
+                response_data_model = response_model.json()
+                model_url = response_data_model.get('file_url')
+
+                if model_url:
+                    return Response({
+                        "status": "success",
+                        "message": "Model uploaded successfully",
+                        "model_url": model_url
+                    }, status=status.HTTP_200_OK)
+                else:
+                    return Response({
+                        "status": "error",
+                        "message": f"Failed to upload model. Error: {response_data_model.get('error')}"
+                    }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            
+            except Exception as e:
+                return Response({
+                    "status": "error",
+                    "message": f"An error occurred: {str(e)}"
+                }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+            finally:
+                try:
+                    shutil.rmtree('data')
+                    print("'data' directory removed successfully.")
+                except PermissionError:
+                    print("Could not remove 'data' directory immediately. It will be removed when the file is no longer in use.")
+                except Exception as e:
+                    print(f"An error occurred while trying to remove 'data' directory: {str(e)}")
+
+        return Response({
+            "status": "error",
+            "message": "Invalid data"
+        }, status=status.HTTP_400_BAD_REQUEST)
+
+
+
 class DatasetUploadView(APIView):
     serializer_class = DatasetUploadSerializer
 
@@ -638,7 +791,7 @@ class DatasetUploadView(APIView):
 
             file_path = default_storage.save(name, uploaded_file)
 
-            if(name.find(".pdf") != -1):
+            if (name.find(".pdf") != -1):
                 pdf_path = os.path.join(pdf_dir, name)
                 pdf_path_new = default_storage.save(pdf_path, uploaded_file)
 
@@ -689,7 +842,7 @@ class DatasetUploadView(APIView):
                 datasets = user.dataset_url
             datasets.append(response_data)
             user.dataset_url = datasets
-            
+
             user.save()
 
             # if name.find(".pdf") == -1:
@@ -777,6 +930,7 @@ class DatasetUploadView(APIView):
         except requests.exceptions.RequestException as e:
             print(f"An error occurred: {str(e)}")
             return None
+
 
 class TrainModelView(APIView):
     def post(self, request):

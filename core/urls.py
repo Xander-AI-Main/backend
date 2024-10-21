@@ -1,6 +1,6 @@
 from django.urls import path,include
 from rest_framework.routers import DefaultRouter
-from .views import TrainModelView, LoginView, UserUpdateView, Interference, UploadFileView, DatasetUploadView
+from .views import TrainModelView, LoginView, UserUpdateView, Interference, UploadFileView, DatasetUploadView, ChatTrainView
 from . import views
 
 router=DefaultRouter()
@@ -15,4 +15,5 @@ urlpatterns=[
     path('train/', TrainModelView.as_view(), name='train_model'),
     path('interference/', Interference.as_view(), name='run_interference'),
     path('store/', UploadFileView.as_view(), name='run_interference'),
+    path('chat/', ChatTrainView.as_view(), name='run_interference'),
 ]
