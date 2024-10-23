@@ -833,6 +833,14 @@ class ChatTrainView(APIView):
                 if cloud_url:
                     shutil.rmtree('data')
                     print("'data' directory removed successfully.")
+                    if type(user.dataset_url) == str:
+                        datasets = json.loads(user.dataset_url)
+                    else:
+                        datasets = user.dataset_url
+                    datasets.append(response_data)
+                    user.dataset_url = datasets
+                    user.save()
+                    
                     return Response(response_data, status=status.HTTP_200_OK)
                 else:
                     return Response({
