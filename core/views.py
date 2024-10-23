@@ -38,7 +38,6 @@ import socket
 import threading
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-import socketio
 import uuid
 import random
 import numpy as np
@@ -600,9 +599,6 @@ class SocketClient:
         print("Server is waiting for a connection...")
 
 
-sio = socketio.Client()
-
-
 def isText(df, columns):
     text = []
     for column in columns:
@@ -667,11 +663,71 @@ class UploadFileView(APIView):
 class ChatTrainView(APIView):
     serializer_class = ChatTrainSerializer
     api_url = 'https://apiv3.xanderco.in/core/store/'
+    
+    def determine_task(self, file_path):
+        file_type = mimetypes.guess_type(file_path)[0]
+        task_type = ''
+        architecture_details = ''
+        architecture = []
+        hyperparameters = {}
+
+        if file_type == 'application/zip' or file_type == "application/x-zip-compressed":
+            with zipfile.ZipFile(file_path, 'r') as zip_ref:
+                file_list = zip_ref.namelist()
+                if any(file.endswith('.mp3') for file in file_list):
+                    task_type = 'audio'
+                    architecture_details = 'Audio processing architecture'
+                    architecture, hyperparameters = returnArch(
+                        arch_data, task_type, "DL", "default")
+                elif any(file.endswith(('.jpg', '.jpeg', '.png')) for file in file_list):
+                    task_type = 'image'
+                    architecture_details = 'Image processing architecture'
+                    architecture, hyperparameters = returnArch(
+                        arch_data, task_type, "DL", "default")
+                else:
+                    raise ValueError("No supported file types found in ZIP")
+
+        elif file_type == 'application/json' or file_type == 'application/pdf':
+            task_type = 'chatbot'
+            architecture_details = 'Chatbot architecture'
+            architecture, hyperparameters = returnArch(
+                arch_data, task_type, "DL", "default")
+
+        else:
+            df = pd.read_csv(file_path)
+            num_columns = df.select_dtypes(include=[np.number]).shape[1]
+            all_columns = list(df.columns)
+            final_column = df.iloc[:, -1]
+
+            if isText(df, all_columns) == True and df.apply(lambda col: col.str.len().mean() > 10).any():
+                print("Going in")
+                task_type = 'text'
+                architecture_details = 'NLP architecture'
+                architecture, hyperparameters = returnArch(
+                    arch_data, task_type, "DL", "default")
+            else:
+                df[all_columns[-1]] = df[all_columns[-1]
+                                         ].apply(lambda x: textToNum(final_column, x))
+                final_column = df.iloc[:, -1]
+                unique_values = final_column.unique()
+                if len(unique_values) / len(final_column) > 0.1:
+                    task_type = 'regression'
+                    architecture_details = 'Regression model architecture'
+                    architecture, hyperparameters = returnArch(
+                        arch_data, task_type, "DL", "default")
+                else:
+                    task_type = 'classification'
+                    architecture_details = 'Classification model architecture'
+                    architecture, hyperparameters = returnArch(
+                        arch_data, task_type, "DL", "default")
+
+        return task_type, hyperparameters, architecture
 
     def post(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             query = serializer.validated_data['query']
+            userId = serializer.validated_data['userId']
             context = '''
             User will provide you with a query describing the AI model they want to build. You will extract following things from the query:
             1. Type of task, i.e., whether it is Regression, Classification, Image Classification, Textual Classification or Chatbot development.
@@ -691,6 +747,8 @@ class ChatTrainView(APIView):
                 datasets = kaggle.api.dataset_list(search=requirements["model"])
                 dataset_refs = [dataset.ref for dataset in datasets]
 
+                print(datasets)
+
                 dataset_context = f"Model to train: {requirements['model']} Dataset names: {dataset_refs}."
                 dataset_query = f"Now based on the model to train name, return from the dataset names array that dataset name that resonates the most with the name of the model to train. You will always return exactly one single name from the dataset names array. And make sure the name is exactly the same as in the dataset names array, i.e., in the format of username/dataset-name!"
                 
@@ -699,7 +757,7 @@ class ChatTrainView(APIView):
                 selected_ref = dataset_response.text.strip()
 
                 dataset = next((d for d in datasets if d.ref == selected_ref), None)
-
+                print(dataset)
                 if dataset is None:
                     return Response({
                         "status": "error",
@@ -710,6 +768,7 @@ class ChatTrainView(APIView):
                 dirs = os.listdir('data')
 
                 file_path = None
+                file_name = ''
                 train_result = checkTrain(dirs)
                 test_result = checkTest(dirs)
 
@@ -733,19 +792,48 @@ class ChatTrainView(APIView):
                     file_name = remove_whitespace(dirs[0])
                     file_path = os.path.join('data', file_name)
 
-                with open(file_path, 'rb') as file_obj:
+                print(file_name)
+                print(file_path)
+
+                name = file_name.split(
+                '.')[0] + str(uuid.uuid4()) + '.' + file_name.split('.')[1]
+                
+                new_file_path = file_path.replace(file_name, name)
+
+                os.rename(file_path, new_file_path)
+
+                file_size_bytes = os.path.getsize(new_file_path)
+                file_size_gb = file_size_bytes / (1024 ** 3)
+                print(file_size_gb)
+
+                user = get_object_or_404(userSignup, id=userId)
+                currUsage = float(user.s3_storage_used)
+                user.s3_storage_used = currUsage + file_size_gb
+                user.save()
+
+                task_type, hyperparameter, architecture_details = self.determine_task(
+                new_file_path)
+
+                with open(new_file_path, 'rb') as file_obj:
                     file = {'file': file_obj}
                     response_model = requests.post(self.api_url, files=file)
 
                 response_data_model = response_model.json()
-                model_url = response_data_model.get('file_url')
-
-                if model_url:
-                    return Response({
-                        "status": "success",
-                        "message": "Model uploaded successfully",
-                        "model_url": model_url
-                    }, status=status.HTTP_200_OK)
+                cloud_url = response_data_model.get('file_url')
+                print(cloud_url)
+                
+                response_data = {
+                                'task_type': task_type,
+                                'architecture_details': architecture_details,
+                                'cloud_url': cloud_url,
+                                'hyperparameter': hyperparameter
+                            }
+                
+                print(response_data)
+                if cloud_url:
+                    shutil.rmtree('data')
+                    print("'data' directory removed successfully.")
+                    return Response(response_data, status=status.HTTP_200_OK)
                 else:
                     return Response({
                         "status": "error",
@@ -757,15 +845,6 @@ class ChatTrainView(APIView):
                     "status": "error",
                     "message": f"An error occurred: {str(e)}"
                 }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-            finally:
-                try:
-                    shutil.rmtree('data')
-                    print("'data' directory removed successfully.")
-                except PermissionError:
-                    print("Could not remove 'data' directory immediately. It will be removed when the file is no longer in use.")
-                except Exception as e:
-                    print(f"An error occurred while trying to remove 'data' directory: {str(e)}")
 
         return Response({
             "status": "error",
